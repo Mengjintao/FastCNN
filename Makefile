@@ -4,7 +4,7 @@
 CXX = g++
 
 #CXX_SRC=winograd_kernels.cpp  winograd_kernels_F63.cpp winoF63.cpp helper.cpp TensorGEMM.cpp ConvTest.cpp ConvKernels.cpp
-CXX_SRC=./winoF63/winoF63.cpp ./utility/helper.cpp ./winoF63/TensorGEMM.cpp ConvTest.cpp ./ncnn/ConvKernels.cpp
+CXX_SRC=./winoF63/winoF63.cpp ./utility/helper.cpp ./utility/common.cpp ./winoF63/TensorGEMM.cpp ConvTest.cpp ./ncnn/ConvKernels.cpp
 
 CXX_FLAGS = -std=c++11 $(DEFS) -Wno-format -I$(PWD) -O3 -fopenmp
 LD_FLAGS= -pie -pthread -std=c++11 -fopenmp

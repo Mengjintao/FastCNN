@@ -14,14 +14,13 @@
 
 #pragma once
 
-#include "../layer.h"
-#include "./arm/helper.h"
+//#include "../layer.h"
+#include "./utility/helper.h"
+#include "./utility/common.h"
 #include <assert.h>
 #include <stdio.h>
 
-namespace feather
-{
-class ConvLayer:
+class ConvLayer
 {
     public:
         ConvLayer(float *input, float *kernel, float *biasw, size_t ic, size_t ih, size_t iw, size_t oc, size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=0, size_t pad_right=0, size_t pad_top=0, size_t pad_bottom=0, size_t g=1, bool bias=0)
@@ -87,6 +86,12 @@ class ConvLayer:
             return 0;
         }
 */
+
+        virtual int Init()
+        {
+            return -1;
+        }
+
         virtual int Forward()
         {
             return -1;
@@ -118,11 +123,11 @@ class ConvLayer:
         size_t padding_bottom;
 
         size_t group;
-        bool bias_term;
+        bool   bias_term;
+	int    num_threads;
 
 	float *input_data;
+	float *output_data;
         float *kernel_data;
         float *bias_data;
-	float *output_data;
-};
 };

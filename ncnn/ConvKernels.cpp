@@ -2,8 +2,6 @@
 //  BasicConv.cpp
 //  WinogradConvolution
 //
-//  Created by LanHaidong on 17/08/2017.
-//  Copyright © 2017 Tencent. All rights reserved.
 //
 
 #include "ConvKernels.hpp"

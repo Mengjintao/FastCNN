@@ -8,7 +8,8 @@
 #include <arm_neon.h>
 #include "./winoF63/winoF63.h"
 #include <math.h>
-
+#include "./conv_layer.h"
+#include "./convLayer/naiveConv.h"
 
 void fillTestInput(float* target, int inChannels, nnp_size inputDim){
     float* pChannel = target;
@@ -56,6 +57,7 @@ void printMatrix(float* matrix, int row, int col)
 
 int main(int argc, char* argv[]){
     srand((unsigned)time(NULL)); 
+
 
     char testName[256];
     Timer timer;
@@ -134,7 +136,11 @@ int main(int argc, char* argv[]){
   */  
     fillTestInput(testInput, inputChannels, inputDim);
     fillTestKernel(testKernel, inputChannels, outputChannels, kernelDim);
-    
+
+//    ConvLayer conv(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
+//    conv.Forward();
+
+
 //    printMatrix(testKernel, 8, 9);
     
     winoF63_naive(naiveResult, testInput, testKernel, inputChannels, outputChannels, inputDim.height, inputDim.width, pad_width, pad_height, num_threads);
