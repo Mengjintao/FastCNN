@@ -218,6 +218,7 @@ static inline void neon_transpose4x4_inplace_f32_cpp(
 //testKernel[OC X IC X 9], testInput[IC X H X W], testResult[OC X (H-2) x (W-2)]
 int winoF63_naive(float *baseResult, float *testInput, float *testKernel, int inputChannels, int outputChannels, int inputHeight, int inputWidth, int padWidth, int padHeight, int num_threads)
 {
+    printf("winoF63 inputHW, padHW, channel: %d %d %d %d %d %d\n", inputHeight,inputWidth, padHeight, padWidth, inputChannels, outputChannels);
     int outputHeight = inputHeight+padHeight*2 -2; 
     int outputWidth  = inputWidth +padWidth *2 -2;
     int outputPage   = outputHeight * outputWidth;

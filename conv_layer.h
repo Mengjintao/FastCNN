@@ -23,7 +23,7 @@
 class ConvLayer
 {
     public:
-        ConvLayer(float *input, float *kernel, float *biasw, size_t ic, size_t ih, size_t iw, size_t oc, size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=0, size_t pad_right=0, size_t pad_top=0, size_t pad_bottom=0, size_t g=1, bool bias=0)
+        ConvLayer(float *input, float *kernel, float *biasw, size_t ic, size_t ih, size_t iw, size_t oc, size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=1, size_t pad_right=1, size_t pad_top=1, size_t pad_bottom=1, size_t g=1, bool bias=0)
         {
 	    //Input
             input_channels = ic;
@@ -57,7 +57,7 @@ class ConvLayer
 	    //Output
             output_width = (input_width + padding_left + padding_right - kernel_width) / stride_width + 1;
             output_height = (input_height + padding_top + padding_bottom - kernel_height) / stride_height + 1;
-   	    output_data = (float *) _mm_malloc(output_channels * output_width * output_height * sizeof(float)); 
+   	    output_data = (float *) malloc(output_channels * output_width * output_height * sizeof(float)); 
         }
 /*
         int GenerateTopBlobs()
@@ -102,6 +102,7 @@ class ConvLayer
 	    return -1;
 	}	
 	
+	float *output_data;
     protected:
         size_t input_channels;
         size_t input_width;
@@ -127,7 +128,6 @@ class ConvLayer
 	int    num_threads;
 
 	float *input_data;
-	float *output_data;
         float *kernel_data;
         float *bias_data;
 };

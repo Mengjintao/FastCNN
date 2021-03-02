@@ -137,13 +137,17 @@ int main(int argc, char* argv[]){
     fillTestInput(testInput, inputChannels, inputDim);
     fillTestKernel(testKernel, inputChannels, outputChannels, kernelDim);
 
-//    ConvLayer conv(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
-//    conv.Forward();
+    ConvNaiveLayer conv(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
+    conv.Forward();
 
 
 //    printMatrix(testKernel, 8, 9);
     
     winoF63_naive(naiveResult, testInput, testKernel, inputChannels, outputChannels, inputDim.height, inputDim.width, pad_width, pad_height, num_threads);
+
+    float Ret = diff(naiveResult, conv.output_data, outputChannels* outputDim.height * outputDim.width);
+
+
 //    timer.startBench();
 //    conv3x3s1_neon(testInput, inputChannels, inputDim, testKernel, kernelDim, ncnnResult, outputChannels, outputDim, paddings, subsampling);
 //    timer.endBench("NCNN wall clock: ");
@@ -161,6 +165,7 @@ int main(int argc, char* argv[]){
 
     float diffRet2 =diff(winogradResult, naiveResult, outputChannels* outputDim.height * outputDim.width);
 */
+    
     int warmup = 5;
     int nloop = 30;
     icBlock = inputChannels;
@@ -211,6 +216,7 @@ int main(int argc, char* argv[]){
     	printMatrix(baseResult+index*19*19,  19, 19);
     	printMatrix(naiveResult+index*19*19, 19, 19);
     }
+    
 /*
     transformKernel_F6x6_3x3(UT, testKernel, inputChannels, outputChannels);
     for(int i=0;i<warmup;i++)
