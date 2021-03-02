@@ -939,6 +939,7 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
     int tileW = (inputWidth + padWidth*2  -2 + 5)/6;
     int tileN = tileH*tileW;
 
+    printf("%d %d\n", inputChannels, icBlock);
     assert(inputChannels%icBlock  == 0);
     assert(outputChannels%ocBlock == 0);
 
