@@ -1,14 +1,24 @@
-//
-//  BasicConv.cpp
-//  WinogradConvolution
-//
-//
+#ifndef BasicConv_hpp
+#define BasicConv_hpp
 
-#include "ConvKernels.hpp"
 #include <string.h>
 #include <stdlib.h>
 #include <arm_neon.h>
 #include <assert.h>
+
+#include <stdio.h>
+
+struct nnp_size {
+    int width;
+    int height;
+};
+
+struct nnp_padding {
+    int top;
+    int right;
+    int bottom;
+    int left;
+};
 
 void conv3x3s1_neon(float *rawInput, int input_channels, struct nnp_size inputDim,
                     float* kernel, struct nnp_size kernelDim,
@@ -334,3 +344,5 @@ void conv3x3s1_neon(float *rawInput, int input_channels, struct nnp_size inputDi
     }
     free(paddedInput);
 }
+
+#endif /* BasicConv_hpp */

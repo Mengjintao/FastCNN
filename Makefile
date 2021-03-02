@@ -4,7 +4,7 @@
 CXX = g++
 
 #CXX_SRC=winograd_kernels.cpp  winograd_kernels_F63.cpp winoF63.cpp helper.cpp TensorGEMM.cpp ConvTest.cpp ConvKernels.cpp
-CXX_SRC=./winoF63/winoF63.cpp ./utility/helper.cpp ./utility/common.cpp ./winoF63/TensorGEMM.cpp ConvTest.cpp ./ncnn/ConvKernels.cpp
+CXX_SRC=./winoF63/winoF63.cpp ./utility/helper.cpp ./utility/common.cpp ./winoF63/TensorGEMM.cpp ConvTest.cpp 
 
 CXX_FLAGS = -std=c++11 $(DEFS) -Wno-format -I$(PWD) -O3 -fopenmp
 LD_FLAGS= -pie -pthread -std=c++11 -fopenmp
@@ -19,7 +19,8 @@ OBJ_DIR=./obj
 OBJ = $(patsubst %.cpp, $(OBJ_DIR)/%.cpp.o, $(CXX_SRC))
 
 all:dir $(OBJ) 
-	$(CXX) $(DEFS) $(LD_FLAGS) $(OBJ_DIR)/*.o $(OBJ_DIR)/utility/*.o $(OBJ_DIR)/winoF63/*.o $(OBJ_DIR)/ncnn/*.o  -o $(EXEC)
+#	$(CXX) $(DEFS) $(LD_FLAGS) $(OBJ_DIR)/*.o $(OBJ_DIR)/utility/*.o $(OBJ_DIR)/winoF63/*.o $(OBJ_DIR)/ncnn/*.o  -o $(EXEC)
+	$(CXX) $(DEFS) $(LD_FLAGS) $(OBJ_DIR)/*.o $(OBJ_DIR)/utility/*.o $(OBJ_DIR)/winoF63/*.o  -o $(EXEC)
 
 $(OBJ_DIR)/%.cpp.o:%.cpp
 	$(CXX) -c $(CXX_FLAGS) $(DEFS) $< -o $@
@@ -27,6 +28,6 @@ dir:
 	mkdir -p $(OBJ_DIR)
 	mkdir -p $(OBJ_DIR)/utility
 	mkdir -p $(OBJ_DIR)/winoF63
-	mkdir -p $(OBJ_DIR)/ncnn
+#	mkdir -p $(OBJ_DIR)/ncnn
 clean :
 	rm -rf $(EXEC) $(OBJ_DIR)

@@ -1,4 +1,3 @@
-#include "./ncnn/ConvKernels.hpp"
 //#include "winograd_kernels.h"
 //#include "winograd_kernels_F63.h"
 #include "./utility/helper.h"
@@ -9,7 +8,9 @@
 #include "./winoF63/winoF63.h"
 #include <math.h>
 #include "./conv_layer.h"
+#include "./ncnn/ConvKernels.h"
 #include "./convLayer/naiveConv.h"
+#include "./convLayer/naiveNCNNConv.h"
 
 void fillTestInput(float* target, int inChannels, nnp_size inputDim){
     float* pChannel = target;
@@ -129,28 +130,37 @@ int main(int argc, char* argv[]){
     float* testKernel      = (float *) malloc(sizeof(float) * kernelDim.height * kernelDim.width * inputChannels * outputChannels);
     float* baseResult      = (float *) malloc(sizeof(float) * outputDim.height * outputDim.width * outputChannels);
     float* naiveResult     = (float *) malloc(sizeof(float) * outputDim.height * outputDim.width * outputChannels);
-/*
     float* ncnnResult      = (float *) malloc(sizeof(float) * outputDim.height * outputDim.width * outputChannels);
-    float* winogradResult  = (float *) malloc(sizeof(float) * outputDim.height * outputDim.width * outputChannels);
+/*  
+ *  float* winogradResult  = (float *) malloc(sizeof(float) * outputDim.height * outputDim.width * outputChannels);
     float* winogradResult2 = (float *) malloc(sizeof(float) * outputDim.height * outputDim.width * outputChannels);
   */  
     fillTestInput(testInput, inputChannels, inputDim);
     fillTestKernel(testKernel, inputChannels, outputChannels, kernelDim);
 
+    timer.startBench();
     ConvNaiveLayer conv(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
     conv.Forward();
+    timer.endBench("ConvNaiveLayer wall clock: ");
 
-
-//    printMatrix(testKernel, 8, 9);
-    
+    timer.startBench();
     winoF63_naive(naiveResult, testInput, testKernel, inputChannels, outputChannels, inputDim.height, inputDim.width, pad_width, pad_height, num_threads);
-
+    timer.endBench("ConvNaive wall clock: ");
     float Ret = diff(naiveResult, conv.output_data, outputChannels* outputDim.height * outputDim.width);
 
+    timer.startBench();
+    conv3x3s1_neon(testInput, inputChannels, inputDim, testKernel, kernelDim, ncnnResult, outputChannels, outputDim, paddings, subsampling);
+    timer.endBench("NCNN wall clock: ");
 
-//    timer.startBench();
-//    conv3x3s1_neon(testInput, inputChannels, inputDim, testKernel, kernelDim, ncnnResult, outputChannels, outputDim, paddings, subsampling);
-//    timer.endBench("NCNN wall clock: ");
+    timer.startBench();
+    ConvNaiveNEONLayer convNEON(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
+    convNEON.Forward();
+    timer.endBench("ConvNaiveNCNNLayer wall clock: ");
+
+   
+        
+
+
 /*
     float *WT = (float *) malloc(sizeof(float) * 64 * (inputDim.width / 2 - 1) * (inputDim.height / 2 - 1) * outputChannels);
     float *VT = (float *) malloc(sizeof(float) * 64 * (inputDim.width / 2 - 1) * (inputDim.height / 2 - 1) * inputChannels);
