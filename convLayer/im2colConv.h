@@ -15,10 +15,19 @@ public:
                     int mc=8, int nc=256, int kc=384, int gemm_version=1, int row_batch=8, int col_batch=8,
                     int is_pack_c=0, int mt_pack_b_version=2, int prefetch_a=256, int prefetch_b=256, int prefetch_c=0)
 	                : ConvLayer(input, kernel, biasw, ic, ih, iw, oc, kh, kw, sh, sw, pad_left, pad_right, pad_top, pad_bottom, g, bias),
-                    mc(mc), nc(nc), kc(kc), gemm_version(gemm_version), row_batch(row_batch), col_batch(col_batch),
+                    mc(mc), nc(nc), kc(kc), row_batch(row_batch), col_batch(col_batch),
                     is_pack_c(is_pack_c), mt_pack_b_version(mt_pack_b_version), prefetch_a(prefetch_a), prefetch_b(prefetch_b), prefetch_c(prefetch_c) {
         
+        M = output_channels;
+        N = output_height * output_width;
+        K = input_channels * kernel_height * kernel_width;
         transform_input_data = static_cast<float*>(malloc(sizeof(float) * output_height * output_width * input_channels * kernel_height * kernel_width));
+        if (this->num_threads > 1)
+            gemm_version = GEMM_BLOCKS_MULTI_THREADS;
+        else if (M <= 32 && N <= 32 && K <= 32)
+            gemm_version = GEMM_NO_BLOCKS;
+        else
+            gemm_version = GEMM_BLOCKS_SINGLE_THREAD;
     }
         
     int Init();
@@ -29,9 +38,9 @@ public:
     void im2col_v1();
 
     void sgemm(); 
-    void GEMM(float* A, float* B, float* C, int M, int N, int K);
-    void GEMM_v2(float* A, float* B, float* C, int M, int N, int K);
-    void GEMM_multithread(float* A, float* B, float* C, int M, int N, int K);
+    void GEMM(float* A, float* B, float* C);
+    void GEMM_v2(float* A, float* B, float* C);
+    void GEMM_multithread(float* A, float* B, float* C);
 
 protected:
     typedef void (*PackA)(int, int, float *, int, float *, int, int, int, const int, const int);
@@ -50,10 +59,12 @@ protected:
     InnerKernel inner_kernel;
     InnerKernelForCorner inner_kernel_for_corner;
 
+    int M;
+    int N;
+    int K;
     int mc;
     int nc;
     int kc;
-    int gemm_version;
     int row_batch;
     int col_batch;
     int is_pack_c;
@@ -61,6 +72,7 @@ protected:
     int prefetch_a;
     int prefetch_b;
     int prefetch_c;
+    int gemm_version;
     float *transform_input_data;
 
     static const int GEMM_NO_BLOCKS = 0;

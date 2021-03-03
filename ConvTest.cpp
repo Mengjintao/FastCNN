@@ -1,4 +1,3 @@
-#include "./ncnn/ConvKernels.hpp"
 //#include "winograd_kernels.h"
 //#include "winograd_kernels_F63.h"
 #include "./utility/helper.h"
@@ -9,7 +8,12 @@
 #include "./winoF63/winoF63.h"
 #include <math.h>
 #include "./conv_layer.h"
+#include "./ncnn/ConvKernels.h"
 #include "./convLayer/naiveConv.h"
+#include "./convLayer/naiveNCNNConv.h"
+#include "./convLayer/winoF63Conv.h"
+#include "./convLayer/im2colConv.h"
+#include "./utility/helper.h"
 
 void fillTestInput(float* target, int inChannels, nnp_size inputDim){
     float* pChannel = target;
@@ -95,8 +99,8 @@ int main(int argc, char* argv[]){
 
     int pad_width = 1;
     int pad_height = 1;
-    int stride_width = 0;
-    int stride_height = 0;
+    int stride_width = 1;
+    int stride_height = 1;
     bool enableOffKernel = 0;
 
     if(argc != 11){
@@ -121,36 +125,37 @@ int main(int argc, char* argv[]){
 	printf("Testing ic=%d oc=%d width=%d tileBlock=%d ocBlock=%d icBlock=%d threads=%d\n", inputChannels, outputChannels, inputDim.width, tileBlock, ocBlock, icBlock, num_threads);
     } 
  
-    outputDim.height = inputDim.height - kernelDim.height + 1 + 2*pad_height;
-    outputDim.width  = inputDim.width  - kernelDim.width  + 1 + 2*pad_width;
-
     float* testInput       = (float *) malloc(sizeof(float) * inputDim.height  * inputDim.width  * inputChannels);
-    float* paddedInput     = (float *) malloc(sizeof(float) * inputDim.height  * inputDim.width  * inputChannels);
     float* testKernel      = (float *) malloc(sizeof(float) * kernelDim.height * kernelDim.width * inputChannels * outputChannels);
-    float* baseResult      = (float *) malloc(sizeof(float) * outputDim.height * outputDim.width * outputChannels);
-    float* naiveResult     = (float *) malloc(sizeof(float) * outputDim.height * outputDim.width * outputChannels);
-/*
-    float* ncnnResult      = (float *) malloc(sizeof(float) * outputDim.height * outputDim.width * outputChannels);
-    float* winogradResult  = (float *) malloc(sizeof(float) * outputDim.height * outputDim.width * outputChannels);
-    float* winogradResult2 = (float *) malloc(sizeof(float) * outputDim.height * outputDim.width * outputChannels);
-  */  
+
     fillTestInput(testInput, inputChannels, inputDim);
     fillTestKernel(testKernel, inputChannels, outputChannels, kernelDim);
 
     ConvNaiveLayer conv(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
+    timer.startBench();
     conv.Forward();
+    timer.endBench("ConvNaiveLayer wall clock: ");
 
+    ConvNaiveNEONLayer convNEON(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
+    timer.startBench();
+    convNEON.Forward();
+    timer.endBench("ConvNaiveNCNNLayer wall clock: ");
+    float Ret = diff(conv.output_data, convNEON.output_data, outputChannels* outputDim.height * outputDim.width);
 
-//    printMatrix(testKernel, 8, 9);
-    
-    winoF63_naive(naiveResult, testInput, testKernel, inputChannels, outputChannels, inputDim.height, inputDim.width, pad_width, pad_height, num_threads);
+    ConvIm2colLayer convIm2col(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
+    convIm2col.Init();
+    timer.startBench();
+    convIm2col.Forward();
+    timer.endBench("ConvIm2colLayer wall clock: ");
+    Ret = diff(conv.output_data, convIm2col.output_data, outputChannels * outputDim.height * outputDim.width);
 
-    float Ret = diff(naiveResult, conv.output_data, outputChannels* outputDim.height * outputDim.width);
+    ConvWinoF63Layer convWinoF63(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
+    convWinoF63.Init();
+    timer.startBench();
+    convWinoF63.Forward();
+    timer.endBench("ConvWinoF63Layer wall clock: ");
+    Ret = diff(conv.output_data, convWinoF63.output_data, outputChannels* outputDim.height * outputDim.width);
 
-
-//    timer.startBench();
-//    conv3x3s1_neon(testInput, inputChannels, inputDim, testKernel, kernelDim, ncnnResult, outputChannels, outputDim, paddings, subsampling);
-//    timer.endBench("NCNN wall clock: ");
 /*
     float *WT = (float *) malloc(sizeof(float) * 64 * (inputDim.width / 2 - 1) * (inputDim.height / 2 - 1) * outputChannels);
     float *VT = (float *) malloc(sizeof(float) * 64 * (inputDim.width / 2 - 1) * (inputDim.height / 2 - 1) * inputChannels);
@@ -165,9 +170,13 @@ int main(int argc, char* argv[]){
 
     float diffRet2 =diff(winogradResult, naiveResult, outputChannels* outputDim.height * outputDim.width);
 */
-    
-    int warmup = 5;
-    int nloop = 30;
+/*
+    outputDim.height = inputDim.height - kernelDim.height + 1 + 2*pad_height;
+    outputDim.width  = inputDim.width  - kernelDim.width  + 1 + 2*pad_width;
+    float* baseResult      = (float *) malloc(sizeof(float) * outputDim.height * outputDim.width * outputChannels);
+
+    int warmup = 0;
+    int nloop = 1;
     icBlock = inputChannels;
 
     float *inputBuf      = new float [icBlock*tileBlock*64]; 
@@ -186,6 +195,10 @@ int main(int argc, char* argv[]){
     printf("inputBuf %d KB\n", tileBlock*icBlock*64*4/1024);  
     printf("L1 Cache used %d KB\n", (tileBlock*ocBlock*48 + icBlock*ocBlock*64 + tileBlock*icBlock*64)*4/1024);
 
+        printf("%d %d %d %d\n", inputChannels, outputChannels, inputDim.height, inputDim.width);
+	printf("%d %d\n", outputDim.height, outputDim.width);
+	printf("%d %d %d %d\n", pad_width, pad_height, stride_width, stride_height);
+        printf("%d %d %d %d %d %d\n",tileBlock, ocBlock, icBlock, tileRegBlock, ocRegBlock, enableOffKernel);	
     for(int i=0;i<warmup;i++)
     winoF63(baseResult, testInput, testKernel, inputChannels, outputChannels, inputDim.height, inputDim.width, pad_width, pad_height, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads);
 
@@ -205,7 +218,7 @@ int main(int argc, char* argv[]){
     inputBuf  = NULL;
      
     printf("%d %d %d\n", outputChannels, outputDim.height, outputDim.width); 
-    float diffRet = diff(baseResult, naiveResult, outputChannels* outputDim.height * outputDim.width);
+    float diffRet = diff(conv.output_data, baseResult, outputChannels* outputDim.height * outputDim.width);
     printf("%s difference is %5.3f\n", testName,  diffRet);
 
     fflush(stdout); 
@@ -213,10 +226,10 @@ int main(int argc, char* argv[]){
 
     for(int index=0;index<0;index++)
     {
-    	printMatrix(baseResult+index*19*19,  19, 19);
-    	printMatrix(naiveResult+index*19*19, 19, 19);
+//    	printMatrix(baseResult+index*19*19,  19, 19);
+//    	printMatrix(naiveResult+index*19*19, 19, 19);
     }
-    
+  */  
 /*
     transformKernel_F6x6_3x3(UT, testKernel, inputChannels, outputChannels);
     for(int i=0;i<warmup;i++)
@@ -238,11 +251,12 @@ int main(int argc, char* argv[]){
     diffRet = diff(winogradResult2, naiveResult, outputChannels* outputDim.height * outputDim.width);
     printf("%s difference is %5.3f\n", testName,  diffRet);
 */
+    /*
     fflush(stdout); 
     free(testInput);
     free(testKernel);
     free(baseResult);
-    free(naiveResult);
+    */
 //    free(winogradResult);
 //    free(VT);
 //    free(ST);

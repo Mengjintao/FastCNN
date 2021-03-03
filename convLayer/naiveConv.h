@@ -60,5 +60,7 @@ class ConvNaiveLayer : public ConvLayer
 
         return 1;
     }
+    private:
+
 };
 

@@ -21,15 +21,16 @@ CommonMemPool	utility/mempool.h	/^        CommonMemPool(): common_size(0), commo
 CommonMemPool	utility/mempool.h	/^class CommonMemPool$/;"	c
 ConvLayer	conv_layer.h	/^        ConvLayer(float *input, float *kernel, float *biasw, size_t ic, size_t ih, size_t iw, size_t oc, size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=1, size_t pad_right=1, size_t pad_top=1, size_t pad_bottom=1, size_t g=1, bool bias=0)$/;"	f	class:ConvLayer
 ConvLayer	conv_layer.h	/^class ConvLayer$/;"	c
+ConvNaiveLayer	convLayer/naiveConv.h	/^    ConvNaiveLayer(float *input, float *kernel, float *biasw, size_t ic, size_t ih, size_t iw, size_t oc, size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=1, size_t pad_right=1, size_t pad_top=1, size_t pad_bottom=1, size_t g=1, bool bias=0)$/;"	f	class:ConvNaiveLayer
+ConvNaiveLayer	convLayer/naiveConv.h	/^class ConvNaiveLayer : public ConvLayer$/;"	c
 ConvWinogradLayer	convLayer/conv_winograd_layer.h	/^        ConvWinogradLayer(const LayerParameter *layer_param, const RuntimeParameter<float>* rt_param)$/;"	f	class:feather::ConvWinogradLayer
 ConvWinogradLayer	convLayer/conv_winograd_layer.h	/^class ConvWinogradLayer : public ConvLayer$/;"	c	namespace:feather
-ConvWinogradLayer	convLayer/naiveConv.h	/^class ConvWinogradLayer : public ConvLayer$/;"	c
 Copy	utility/blob.h	/^        void Copy(const Blob<Dtype>* p_blob)$/;"	f	class:feather::Blob
 CopyData	utility/blob.h	/^        void CopyData(const Dtype* data)$/;"	f	class:feather::Blob
 CopyShape	utility/blob.h	/^        void CopyShape(const Blob<Dtype>* p_blob)$/;"	f	class:feather::Blob
 EXEC	Makefile	/^EXEC=winograd_dev$/;"	m
 Forward	convLayer/conv_winograd_layer.h	/^        int Forward()$/;"	f	class:feather::ConvWinogradLayer
-Forward	convLayer/naiveConv.h	/^    int Forward()$/;"	f	class:ConvWinogradLayer
+Forward	convLayer/naiveConv.h	/^    int Forward()$/;"	f	class:ConvNaiveLayer
 Forward	conv_layer.h	/^        virtual int Forward()$/;"	f	class:ConvLayer
 ForwardReshape	convLayer/conv_winograd_layer.h	/^        virtual int ForwardReshape()$/;"	f	class:feather::ConvWinogradLayer
 Free	utility/blob.cpp	/^void Blob<Dtype>::Free()$/;"	f	class:feather::Blob
@@ -43,7 +44,7 @@ GetPtr	utility/mempool.cpp	/^bool CommonMemPool<PTR_TYPE>::GetPtr(PTR_TYPE ** pt
 GetPtr	utility/mempool.cpp	/^bool CommonMemPool<PTR_TYPE>::GetPtr(PTR_TYPE ** ptr, size_t id)$/;"	f	class:CommonMemPool
 GetSize	utility/mempool.cpp	/^bool PrivateMemPool<PTR_TYPE>::GetSize(PTR_TYPE * ptr, size_t * size_byte)$/;"	f	class:PrivateMemPool
 Init	convLayer/conv_winograd_layer.h	/^        int Init()$/;"	f	class:feather::ConvWinogradLayer
-Init	convLayer/naiveConv.h	/^    int Init()$/;"	f	class:ConvWinogradLayer
+Init	convLayer/naiveConv.h	/^    int Init()$/;"	f	class:ConvNaiveLayer
 Init	conv_layer.h	/^        virtual int Init()$/;"	f	class:ConvLayer
 LD_FLAGS	Makefile	/^LD_FLAGS= -pie -pthread -std=c++11 -fopenmp$/;"	m
 LOGD	utility/helper.h	23;"	d
@@ -101,7 +102,7 @@ TensorGEMMInnerKernel7x6x4	winoF63/TensorGEMM.cpp	/^void TensorGEMMInnerKernel7x
 TensorGEMM_H_	winoF63/TensorGEMM.h	2;"	d
 Timer	utility/helper.h	/^        Timer() {accumulate=0;}$/;"	f	class:Timer
 Timer	utility/helper.h	/^class Timer$/;"	c
-Tuning	convLayer/naiveConv.h	/^    int Tuning()$/;"	f	class:ConvWinogradLayer
+Tuning	convLayer/naiveConv.h	/^    int Tuning()$/;"	f	class:ConvNaiveLayer
 Tuning	conv_layer.h	/^	virtual int Tuning()$/;"	f	class:ConvLayer
 UT	convLayer/conv_winograd_layer.h	/^        float* UT;$/;"	m	class:feather::ConvWinogradLayer
 WINOF63_H_	winoF63/winoF63.h	2;"	d

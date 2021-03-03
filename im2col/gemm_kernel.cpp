@@ -2,7 +2,7 @@
 #include <arm_neon.h>
 #include <assert.h>
 #include <stdio.h>
-#include "helper.h"
+#include "../utility/helper.h"
 
 #define __ARM_ASM
 

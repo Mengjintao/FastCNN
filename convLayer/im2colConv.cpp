@@ -11,16 +11,18 @@ int ConvIm2colLayer::Init() {
     this->set_inner_kernel_for_corner(output_channels % row_batch);
     if (gemm_version == GEMM_BLOCKS_MULTI_THREADS)
         this->set_pack_b_mt();
+    return 1;
 }
 
 int ConvIm2colLayer::Forward() {
     this->im2col();
     // this->im2col_v1();
     this->sgemm();
+    return 1;
 }
 
 int ConvIm2colLayer::Tuning() {
-
+    return 1;
 }
 
 void ConvIm2colLayer::im2col() {
@@ -98,18 +100,22 @@ void ConvIm2colLayer::im2col_v1() {
 }
 
 void ConvIm2colLayer::sgemm() {
-    int M = output_channels;
-    int N = output_height * output_width;
-    int K = input_channels * kernel_height * kernel_width;
-    if (this->num_threads > 1)
-        GEMM_multithread(kernel_data, transform_input_data, output_data, M, N ,K);
-    else if (M * N * K < 32768)
-        GEMM(kernel_data, transform_input_data, output_data, M, N, K);
-    else
-        GEMM_v2(kernel_data, transform_input_data, output_data, M, N, K);
+    switch(gemm_version) {
+        case GEMM_NO_BLOCKS:
+            GEMM(kernel_data, transform_input_data, output_data);
+        break;
+
+        case GEMM_BLOCKS_SINGLE_THREAD:
+            GEMM_v2(kernel_data, transform_input_data, output_data);
+        break;
+
+        case GEMM_BLOCKS_MULTI_THREADS:
+            GEMM_multithread(kernel_data, transform_input_data, output_data);
+        break;
+    }
 }
 
-void ConvIm2colLayer::GEMM(float* A, float* B, float* C, int M, int N, int K) {
+void ConvIm2colLayer::GEMM(float* A, float* B, float* C) {
     int A_row = M;
     int A_col = K;
     int B_row = K;
@@ -143,7 +149,7 @@ void ConvIm2colLayer::GEMM(float* A, float* B, float* C, int M, int N, int K) {
     // }
 }
 
-void ConvIm2colLayer::GEMM_v2(float* A, float* B, float* C, int M, int N, int K) {
+void ConvIm2colLayer::GEMM_v2(float* A, float* B, float* C) {
     int lda = K;
     int ldb = N;
     int ldc = N;
@@ -279,7 +285,7 @@ void ConvIm2colLayer::GEMM_v2(float* A, float* B, float* C, int M, int N, int K)
 }
 
 // 多线程版本
-void ConvIm2colLayer::GEMM_multithread(float* A, float* B, float* C, int M, int N, int K) {
+void ConvIm2colLayer::GEMM_multithread(float* A, float* B, float* C) {
     int lda = K;
     int ldb = N;
     int ldc = N;
