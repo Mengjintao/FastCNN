@@ -45,3 +45,9 @@ void _mm_free(void* ptr)
         ptr = NULL;
     }
 }
+
+
+int align_ceil(int num, int align)
+{
+    return num + (align - (num % align)) % align;
+}

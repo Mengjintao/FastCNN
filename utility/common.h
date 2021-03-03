@@ -30,3 +30,5 @@ class StringTool
 int min(int a, int b);
 void* _mm_malloc(size_t sz, size_t align=64);
 void _mm_free(void* ptr);
+// 向上取整为align的倍数
+int align_ceil(int num, int align);
