@@ -119,7 +119,7 @@ class ConvLayer
             return -1;
         }
 
-	virtual int Tuning()
+	virtual int Tuning(float *Res=NULL)
 	{
 	    return -1;
 	}	

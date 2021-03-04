@@ -20,15 +20,13 @@ class ConvWinoF63Layer : public ConvLayer
     int Tuning()
     {
     	icBlock = input_channels;
+	num_threads = 1;
 	enableOffKernel = 0;
 
 	tileBlock = 20;
-	ocBlock   = 24;
-	icBlock = input_channels;
-
-	ocRegBlock = 6;
 	tileRegBlock = 5;
-	num_threads = 1;
+	ocBlock   = 24;
+	ocRegBlock = 6;
     	
 	inputBuf      = (float *) malloc(icBlock*tileBlock*64*sizeof(float)); 
     	gemmBuf       = (float *) malloc((ocRegBlock*tileRegBlock*36 + ocBlock*tileBlock*64)*sizeof(float));
@@ -46,6 +44,12 @@ class ConvWinoF63Layer : public ConvLayer
     	printf("L1 Cache used %d KB\n", (tileBlock*ocBlock*48 + icBlock*ocBlock*64 + tileBlock*icBlock*64)*4/1024);
 
        	winoF63(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads);
+
+	/*
+	free(inputBuf);
+	free(gemmBuf);
+	free(kernelBuf);
+*/
         return -1;
     }
 
