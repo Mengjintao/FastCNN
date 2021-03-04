@@ -102,6 +102,7 @@ void retransformKernel(float* kernel, int outputChannels, int inputChannels, int
             }
         memcpy(kernel + oc*inputChannels*9,  tmp,  ocBlock * inputChannels * 9 * sizeof(float));
     }
+    free(tmp);
 }
 
 /*

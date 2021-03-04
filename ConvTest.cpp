@@ -103,30 +103,22 @@ int main(int argc, char* argv[]){
     int stride_height = 1;
     bool enableOffKernel = 0;
 
-    if(argc != 11){
+    if(argc != 5){
 	printf("%d\n", argc);
 	printf("usage: ./wingorad_dev [in_channels] [out_channels] [image dim] [tileBlock] [ocBlock] [icBlock] [#threads]\n");
 	return 0;
     } else {
 	inputChannels   = atoi(argv[1]);
-//	outputChannels  = inputChannels;
 	outputChannels  = atoi(argv[2]);
 	inputDim.width  = atoi(argv[3]);
 	inputDim.height = inputDim.width;
-	tileBlock       = atoi(argv[4]);
-	ocBlock         = atoi(argv[5]);
-    	icBlock         = atoi(argv[6]);
-
-	ocRegBlock      = atoi(argv[7]);
-    	tileRegBlock    = atoi(argv[8]);
-	enableOffKernel = bool(atoi(argv[9]));
-    	num_threads     = atoi(argv[10]);
+    	num_threads     = atoi(argv[4]);
 	
 	printf("Testing ic=%d oc=%d width=%d tileBlock=%d ocBlock=%d icBlock=%d threads=%d\n", inputChannels, outputChannels, inputDim.width, tileBlock, ocBlock, icBlock, num_threads);
     } 
  
-    float* testInput       = (float *) malloc(sizeof(float) * inputDim.height  * inputDim.width  * inputChannels);
-    float* testKernel      = (float *) malloc(sizeof(float) * kernelDim.height * kernelDim.width * inputChannels * outputChannels);
+    float* testInput  = (float *) malloc(sizeof(float) * inputDim.height  * inputDim.width  * inputChannels);
+    float* testKernel = (float *) malloc(sizeof(float) * kernelDim.height * kernelDim.width * inputChannels * outputChannels);
 
     fillTestInput(testInput, inputChannels, inputDim);
     fillTestKernel(testKernel, inputChannels, outputChannels, kernelDim);

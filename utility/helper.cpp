@@ -78,13 +78,13 @@ float diff(float* arr1, float* arr2, int len)
     for (int i = 0; i < len; ++i)
     {
         float err = fabsf(arr1[i] - arr2[i]);
-        if (err > 0.1f)
+        if (err > 1e-5f)
         {
             dif += err;
             num ++; 
         }
     }
-    LOGD("The difference is %.2f\n", num==0?0:dif/num);
+    LOGD("The difference is %.5f\n", num==0?0:dif/num);
     return num==0?0:dif/num;
 }
 float diff(float* arr1, float* arr2, int M, int N)
@@ -96,15 +96,15 @@ float diff(float* arr1, float* arr2, int M, int N)
         for (int j = 0; j < N; ++j)
         {
             float err = fabsf(arr1[i * N + j] - arr2[i * N + j]);
-            if (err > 0.1f)
+            if (err > 1e-4)
             {
                 dif += err;
                 num ++;
-                LOGD("Error position (%d, %d), value %.2f, %.2f\n", i, j, arr1[i * N + j], arr2[i * N + j]);
+                LOGD("Error position (%d, %d), value %.4f, %.4f\n", i, j, arr1[i * N + j], arr2[i * N + j]);
             }
         }
     }
-    LOGD("The difference is %.2f\n", num==0?0:dif/num);
+    LOGD("The difference is %.5f\n", num==0?0:dif/num);
     return num==0?0:dif/num;
 }
 
