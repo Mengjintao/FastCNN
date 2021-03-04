@@ -145,7 +145,7 @@ int main(int argc, char* argv[]){
 //    convWinoF63.Init();
     timer.startBench();
 //    convWinoF63.Forward();
-    convWinoF63.Tuning();
+    convWinoF63.Tuning(conv.output_data);
     timer.endBench("ConvWinoF63Layer wall clock: ");
     Ret = diff(conv.output_data, convWinoF63.output_data, outputChannels* outputDim.height * outputDim.width);
 

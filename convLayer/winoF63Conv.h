@@ -1,3 +1,4 @@
+#include "../utility/helper.h"
 
 class ConvWinoF63Layer : public ConvLayer
 {
@@ -9,47 +10,70 @@ class ConvWinoF63Layer : public ConvLayer
 
     ~ConvWinoF63Layer()
     {
-	free(inputBuf);
-	free(gemmBuf);
-	free(kernelBuf);
+	if(inputBuf) 	free(inputBuf);
+	if(gemmBuf)	free(gemmBuf);
+	if(kernelBuf)	free(kernelBuf);
 	inputBuf  = NULL;
 	gemmBuf   = NULL;
 	kernelBuf = NULL;
     }
 
-    int Tuning()
+    int Tuning(float *Res=NULL)
     {
     	icBlock = input_channels;
 	num_threads = 1;
 	enableOffKernel = 0;
 
-	tileBlock = 20;
+	tileBlock    = 20;
 	tileRegBlock = 5;
-	ocBlock   = 24;
-	ocRegBlock = 6;
-    	
-	inputBuf      = (float *) malloc(icBlock*tileBlock*64*sizeof(float)); 
-    	gemmBuf       = (float *) malloc((ocRegBlock*tileRegBlock*36 + ocBlock*tileBlock*64)*sizeof(float));
-    	if(enableOffKernel)	
-	    kernelBuf = (float *) malloc(input_channels * output_channels * 64 * sizeof(float));  	
-    	else	       	
-            kernelBuf = (float *) malloc(icBlock * ocBlock * 64 * sizeof(float));
+	ocBlock      = 60;
+	ocRegBlock   = 4;
 
-    	retransformKernel(kernel_data, output_channels, input_channels, ocRegBlock);
-    	if(enableOffKernel)
-    	    offlineKernelTransform(kernelBuf, kernel_data, output_channels, input_channels, ocBlock, ocRegBlock);
-    	printf("kernelBuf %d KB\n", icBlock*ocBlock*64*4/1024);   
-    	printf("gemmBuf %d KB\n",   (ocRegBlock*tileRegBlock*36 + ocBlock*tileBlock*64)*4/1024);   
-    	printf("inputBuf %d KB\n", tileBlock*icBlock*64*4/1024);  
-    	printf("L1 Cache used %d KB\n", (tileBlock*ocBlock*48 + icBlock*ocBlock*64 + tileBlock*icBlock*64)*4/1024);
+	for(ocRegBlock=4;ocRegBlock<7;ocRegBlock++)
+    	for(tileRegBlock=1;tileRegBlock<5;tileRegBlock++)
+	{
+		for(int kt=1;kt<100;kt++)
+		{
+			float *kernel_temp = (float *) malloc(input_channels * output_channels * kernel_width * kernel_height  * sizeof(float));
+			memcpy(kernel_temp, kernel_data, input_channels * output_channels * kernel_width * kernel_height  * sizeof(float));
 
-       	winoF63(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads);
+			tileBlock = kt*tileRegBlock;
+    			int tileH = (output_height + 5)/6;
+    			int tileW = (output_width  + 5)/6;
+    			int tileN = tileH*tileW;
+        		printf("----%d %d %d\n", tileBlock, tileRegBlock, ocRegBlock);	
+			if(tileBlock>tileN)	break;
 
-	/*
-	free(inputBuf);
-	free(gemmBuf);
-	free(kernelBuf);
+			inputBuf = (float *) malloc(icBlock*tileBlock*64*sizeof(float)); 
+    			gemmBuf  = (float *) malloc((ocRegBlock*tileRegBlock*36 + ocBlock*tileBlock*64)*sizeof(float));
+    			if(enableOffKernel)	
+	    			kernelBuf = (float *) malloc(input_channels * output_channels * 64 * sizeof(float));  	
+    			else	       	
+            			kernelBuf = (float *) malloc(icBlock * ocBlock * 64 * sizeof(float));
+
+    			retransformKernel(kernel_temp, output_channels, input_channels, ocRegBlock);
+    			if(enableOffKernel)
+    	    			offlineKernelTransform(kernelBuf, kernel_temp, output_channels, input_channels, ocBlock, ocRegBlock);
+
+/*    			printf("kernelBuf %d KB\n", icBlock*ocBlock*64*4/1024);   
+    			printf("gemmBuf %d KB\n",   (ocRegBlock*tileRegBlock*36 + ocBlock*tileBlock*64)*4/1024);   
+    			printf("inputBuf %d KB\n", tileBlock*icBlock*64*4/1024);  
+    			printf("L1 Cache used %d KB\n", (tileBlock*ocBlock*48 + icBlock*ocBlock*64 + tileBlock*icBlock*64)*4/1024);
 */
+       			winoF63(output_data, input_data, kernel_temp, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads);
+
+			diff(Res, output_data, output_channels * output_height * output_width);
+
+			free(inputBuf);
+			free(gemmBuf);
+			free(kernelBuf);
+			free(kernel_temp);
+			inputBuf  = NULL;
+			gemmBuf   = NULL;
+			kernelBuf = NULL;
+			kernel_temp = NULL;
+		}
+	}
         return -1;
     }
 

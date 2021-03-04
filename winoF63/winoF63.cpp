@@ -945,10 +945,10 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
 
     printf("%d %d\n", inputChannels, icBlock);
     assert(inputChannels%icBlock  == 0);
-    assert(outputChannels%ocBlock == 0);
-
-    assert(ocBlock%ocRegBlock     == 0);
     assert(tileBlock%tileRegBlock == 0);
+
+    assert(outputChannels%ocBlock == 0);
+//    assert(ocBlock%ocRegBlock     == 0);
 
     void (*tensorGEMM)(float *, const float *, float *, int, int);
     void (*funGEMM)(float *, const float *, float *, int, int);
