@@ -26,9 +26,16 @@ class StringTool
         static void SplitString(const std::string &input, const std::string &delim, std::vector<std::string> &parts);
 };
 
+struct CacheInfo {
+    size_t size;
+    int level;
+    int num_shared_core;
+    char type[32];
+};
 
 int min(int a, int b);
 void* _mm_malloc(size_t sz, size_t align=64);
 void _mm_free(void* ptr);
 // 向上取整为align的倍数
 int align_ceil(int num, int align);
+int get_cache_info(size_t &l1_cache_size_per_core, size_t &l2_cache_size_per_core);
