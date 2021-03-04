@@ -90,17 +90,20 @@ void retransformKernel(float* kernel, int outputChannels, int inputChannels, int
 {
     assert(outputChannels % ocBlock ==0);
 
-    float *tmp = new float [ocBlock*inputChannels*9];
+    float *tmp = (float *) malloc(ocBlock*inputChannels*9*sizeof(float));
 
     for(int oc=0; oc<outputChannels; oc+=ocBlock)
     {
-        for(int i=0; i<ocBlock; i++)
+        int ocEnd  = oc+ocBlock<outputChannels?oc+ocBlock:outputChannels;
+        int ocStep = ocEnd - oc;
+//        for(int i=0; i<ocBlock; i++)
+        for(int i=0; i<ocStep; i++)
             for(int j=0; j<inputChannels; j++)
             {
                 for(int k=0; k<9; k++)
-                    tmp[j*ocBlock*9+i*9+k] = kernel[(oc+i)*inputChannels*9 + j*9 + k];
+                    tmp[j*ocStep*9+i*9+k] = kernel[(oc+i)*inputChannels*9 + j*9 + k];
             }
-        memcpy(kernel + oc*inputChannels*9,  tmp,  ocBlock * inputChannels * 9 * sizeof(float));
+        memcpy(kernel + oc*inputChannels*9,  tmp,  ocStep * inputChannels * 9 * sizeof(float));
     }
     free(tmp);
 }
@@ -1133,8 +1136,12 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
             { 
             kernelTran.startBench();
 	    int   lineWidth = 4*ocRegBlock*inputChannels;
-            for(int kN=0; kN<ocBlock; kN+=ocRegBlock)
+
+//            for(int kN=0; kN<ocBlock; kN+=ocRegBlock)
+            for(int kN=0; kN<ocStep; kN+=ocRegBlock)
             {
+		int ocREnd = kN+ocRegBlock < ocStep? kN+ocRegBlock : ocStep;
+		int ocRStep = ocREnd - kN;
                 //error is find here. there should be no oc inside the loops
                 const float *kernel= testKernel + (oc+kN)*inputChannels*9;
                 float *pk0   = kernelBuf  + kN*inputChannels*64;
@@ -1155,7 +1162,8 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
                 float *pk15  = pk14 + lineWidth;
 
                 for(int ic=0; ic<inputChannels; ic++)
-                    for(int kRN=0; kRN<ocRegBlock; kRN++)
+		{
+		    for(int kRN=0; kRN<ocRStep; kRN++)
                     {
                         //printTensor(kernel, 3, 3);
                         l0 = vld1q_f32(kernel);
@@ -1202,6 +1210,43 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
                         vst1q_f32(pk15,  r7);
                         pk15 +=4;
                     }
+		    for(int kRN=ocRStep; kRN<ocRegBlock; kRN++)
+		    {
+                        vst1q_f32(pk0,   vZero);
+                        pk0  +=4;
+                        vst1q_f32(pk1,   vZero);
+                        pk1  +=4;
+                        vst1q_f32(pk2,   vZero);
+                        pk2  +=4;
+                        vst1q_f32(pk3,   vZero);
+                        pk3  +=4;
+                        vst1q_f32(pk4,   vZero);
+                        pk4  +=4;
+                        vst1q_f32(pk5,   vZero);
+                        pk5  +=4;
+                        vst1q_f32(pk6,   vZero);
+                        pk6  +=4;
+                        vst1q_f32(pk7,   vZero);
+                        pk7  +=4;
+                        vst1q_f32(pk8,   vZero);
+                        pk8  +=4;
+                        vst1q_f32(pk9,   vZero);
+                        pk9  +=4;
+                        vst1q_f32(pk10,  vZero);
+                        pk10 +=4;
+                        vst1q_f32(pk11,  vZero);
+                        pk11 +=4;
+                        vst1q_f32(pk12,  vZero);
+                        pk12 +=4;
+                        vst1q_f32(pk13,  vZero);
+                        pk13 +=4;
+                        vst1q_f32(pk14,  vZero);
+                        pk14 +=4;
+                        vst1q_f32(pk15,  vZero);
+                        pk15 +=4;
+		    }
+
+		}
             }
             kernelTran.accumBench();
 	    }
@@ -1511,7 +1556,6 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
                         pInputBuf  += inputStep;
                         pKernelBuf += kernelStep;
                     }
-
                 }
 
                 if(tileStepRmd)
@@ -1532,7 +1576,8 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
             memset(buf, 0, sizeof(float)*36*tileRegBlock*ocRegBlock);
             int step = tileRegBlock*ocRegBlock*4;
 
-	    for(int kN=0; kN<ocBlock; kN+=ocRegBlock)
+//	    for(int kN=0; kN<ocBlock; kN+=ocRegBlock)
+	    for(int kN=0; kN<ocStep; kN+=ocRegBlock)
                 for(int tN=0; tN<tileStep; tN+=tileRegBlock)
                 {
                     int tNEnd  = tN+tileRegBlock<tileStep?tN+tileRegBlock:tileStep;
@@ -1673,8 +1718,11 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
                         }
 		    }
 
-
-		    for(int kRN=0;kRN<ocRegBlock;kRN++)
+		    int ocREnd  = kN+ocRegBlock < ocStep? kN+ocRegBlock : ocStep;
+		    int ocRStep = ocREnd - kN;
+//		    for(int kRN=0;kRN<ocRegBlock;kRN++)
+		    for(int kRN=0;kRN<ocRStep;kRN++)
+		    {
 			for(int tRN=0;tRN<tNStep;tRN++)
 			{
 	                    int tileRow = (tile+tN+tRN)/tileW*6;
@@ -1693,6 +1741,7 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
                     	    for(int u=0;u<deltaX;u++)   memcpy(output+u*outputWidth, buf+(kRN)*tNStep*36 + (tRN)*36 + u*6, deltaY*4);//memcpy(output+u*outputHeight, buf+(kRN)*tNStep*36 + (tRN)*36  + u*6, deltaY*4); 
 											//bug may be here.
 			}
+		    }
 		}
 
 	    

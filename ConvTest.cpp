@@ -142,9 +142,10 @@ int main(int argc, char* argv[]){
     Ret = diff(conv.output_data, convIm2col.output_data, outputChannels * outputDim.height * outputDim.width);
 
     ConvWinoF63Layer convWinoF63(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
-    convWinoF63.Init();
+//    convWinoF63.Init();
     timer.startBench();
-    convWinoF63.Forward();
+//    convWinoF63.Forward();
+    convWinoF63.Tuning();
     timer.endBench("ConvWinoF63Layer wall clock: ");
     Ret = diff(conv.output_data, convWinoF63.output_data, outputChannels* outputDim.height * outputDim.width);
 
