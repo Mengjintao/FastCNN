@@ -73,6 +73,7 @@ class Timer
 	    void printBench(const char *comments, int fold);
         void endBench(const char *commets);
         void endBench(const char *commets, double fold);
+        double endBench(double fold);
     private:
         timespec start, stop;
         double accumulate;

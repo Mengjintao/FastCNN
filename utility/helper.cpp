@@ -133,6 +133,13 @@ void Timer::endBench(const char* comment)
     LOGD("%s %lfms\n", comment, elapsedTime);
 }
 
+double Timer::endBench(double fold)
+{
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    double elapsedTime = (stop.tv_sec - start.tv_sec) * 1000.0 + (stop.tv_nsec - start.tv_nsec) / 1000000.0; 
+    return (elapsedTime / fold);
+}
+
 void Timer::endBench(const char* comment, double fold)
 {
     clock_gettime(CLOCK_MONOTONIC, &stop);
