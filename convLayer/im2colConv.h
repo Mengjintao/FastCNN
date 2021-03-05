@@ -92,9 +92,9 @@ protected:
     void select_tuning_range_for_pack(int&, int&, int&, int&, int&, int&);
     void select_tuning_range_for_prefetch(int&, int&, int&, int&, int&, int&, int&, int&, int&);
 
-    bool search_log_file_and_entry(const char *log_path, FILE* &log_file);
+    bool search_log_file_and_entry(const char *log_path);
     void search_best_param(int &best_mc, int &best_nc, int &best_kc, int &best_rb, int &best_cb, int &best_pc, int &best_pb, int &best_pre_a, int &best_pre_b, int &best_pre_c);
-    void write_best_param(FILE* log_file, int &best_mc, int &best_nc, int &best_kc, int &best_rb, int &best_cb, int &best_pc, int &best_pb, int &best_pre_a, int &best_pre_b, int &best_pre_c);
+    void write_best_param(const char *log_path, int &best_mc, int &best_nc, int &best_kc, int &best_rb, int &best_cb, int &best_pc, int &best_pb, int &best_pre_a, int &best_pre_b, int &best_pre_c);
 };
 
 #endif 

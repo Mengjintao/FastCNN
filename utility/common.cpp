@@ -160,11 +160,11 @@ int get_cache_info(size_t &l1_cache_size_per_core, size_t &l2_cache_size_per_cor
                 }
                 if (strcmp(type, "Instruction") != 0) {
                     if (cache_info.level == 1) {
-                        l1_cache_size = cache_info.size;
-                        l1_cache_size_per_core = cache_info.size / (size_t)cache_info.num_shared_core;
+                        l1_cache_size = cache_info.size * 1024;
+                        l1_cache_size_per_core = l1_cache_size / (size_t)cache_info.num_shared_core;
                     } else if (cache_info.level == 2) {
-                        l2_cache_size = cache_info.size;
-                        l2_cache_size_per_core = cache_info.size / (size_t)cache_info.num_shared_core;
+                        l2_cache_size = cache_info.size * 1024;
+                        l2_cache_size_per_core = l2_cache_size / (size_t)cache_info.num_shared_core;
                     }
                 }
             }

@@ -60,9 +60,9 @@ void ConvIm2colLayer::select_tuning_range_for_prefetch(int &pre_a_begin, int &pr
     pre_c_end   = 256 - 1;
 }
 
-bool ConvIm2colLayer::search_log_file_and_entry(const char *log_path, FILE* &log_file) {
+bool ConvIm2colLayer::search_log_file_and_entry(const char *log_path) {
     bool is_log_entry_exist = false;
-    log_file = fopen(log_path, "a+");
+    FILE *log_file = fopen(log_path, "a+");
     fseek(log_file, 0, SEEK_SET);
     int M, N, K, mc, nc, kc, row_batch, col_batch, gemm_version, pc_version, pb_version, pre_a, pre_b, pre_c;
     if (log_file != nullptr) {
@@ -83,6 +83,7 @@ bool ConvIm2colLayer::search_log_file_and_entry(const char *log_path, FILE* &log
             }
         }
     }
+    fclose(log_file);
     return is_log_entry_exist;
 }
 
@@ -93,8 +94,8 @@ void ConvIm2colLayer::search_best_param(int &best_mc, int &best_nc, int &best_kc
     get_cache_info(l1_cache_size_per_core, l2_cache_size_per_core);
     size_t l1_bound = l1_cache_size_per_core / 2 / sizeof(float);
     size_t l2_bound = l2_cache_size_per_core / 2 / sizeof(float);
-    printf("l1cache:%dbytes\n", l1_cache_size_per_core);
-    printf("l2cache:%dbytes\n", l2_cache_size_per_core);
+    printf("l1cache:%ubytes\n",(size_t)l1_cache_size_per_core);
+    printf("l2cache:%ubytes\n",(size_t)l2_cache_size_per_core);
 
     Timer timer;
     int n_loop = 10;
@@ -119,27 +120,32 @@ void ConvIm2colLayer::search_best_param(int &best_mc, int &best_nc, int &best_kc
         select_tuning_range_for_pack(pc_begin, pc_end, pc_step, pb_begin, pb_end, pb_step);
         select_tuning_range_for_prefetch(pre_a_begin, pre_a_end, pre_a_step, pre_b_begin, pre_b_end, pre_b_step, pre_c_begin, pre_c_end, pre_c_step);
 
-        long long int cur_round = 0;
-        long long int total_round = ((long long int)((mc_end - mc_begin + mc_step - 1) / mc_step) 
-                                   * (long long int)((nc_end - nc_begin + nc_step - 1) / nc_step) 
-                                   * (long long int)((kc_end - kc_begin + kc_step - 1) / kc_step));
+        size_t cur_round = 0;
+        size_t total_round = ((size_t)((mc_end - mc_begin) / mc_step + 1) 
+                            * (size_t)((nc_end - nc_begin) / nc_step + 1) 
+                            * (size_t)((kc_end - kc_begin) / kc_step + 1));
 
-        printf("mc_range_%lld\n", (long long int)((mc_end - mc_begin) / mc_step));
-        printf("nc_range_%lld\n", (long long int)((nc_end - nc_begin) / nc_step));
-        printf("kc_range_%lld\n", (long long int)((kc_end - kc_begin) / kc_step));
+        printf("mc_range_%u\n", (size_t)((mc_end - mc_begin) / mc_step + 1));
+        printf("nc_range_%u\n", (size_t)((nc_end - nc_begin) / nc_step + 1));
+        printf("kc_range_%u\n", (size_t)((kc_end - kc_begin) / kc_step + 1));
 
         printf("This register kernel is %d x %d\n", this->row_batch, this->col_batch);
+        printf("==============================\n");
         printf("cur/total round of this kernel: %d/%lld\n", 1, total_round);
 
         for (int m = mc_begin; m <= mc_end; m += mc_step) {
             for (int n = nc_begin; n <= nc_end; n += nc_step) {
                 for (int k = kc_begin; k <= kc_end; k += kc_step) {
                     if ((size_t)(m * k) > l1_bound || (size_t)(k * n) > l2_bound) {
-                        cur_round += (kc_end - k) / kc_step;
+                        cur_round += (kc_end - k) / kc_step + 1;
                         break;
                     }
                     cur_round++;
-                    if (cur_round % 50 == 0) {
+		    if (cur_round == total_round) {
+                        printf("==============================\n");
+                        printf("cur/total round of this kernel: %d/%lld\n", cur_round, total_round);
+                        printf("best time: %fms\n", best_time);
+		    } else if (cur_round % 50 == 0) {
                         printf("==============================\n");
                         printf("cur/total round of this kernel: %d/%lld\n", cur_round, total_round);
                         printf("best time: %fms\n", best_time);
@@ -164,7 +170,7 @@ void ConvIm2colLayer::search_best_param(int &best_mc, int &best_nc, int &best_kc
                                         for (int i = 0; i < n_loop; i++) 
                                             this->Forward();
                                         elapsed_time = timer.endBench(n_loop);
-                                        
+
                                         if (elapsed_time < best_time) {
                                             best_time = elapsed_time;
                                             printf("update best time: %fms\n", best_time);
@@ -190,11 +196,26 @@ void ConvIm2colLayer::search_best_param(int &best_mc, int &best_nc, int &best_kc
     }
 }
 
-void ConvIm2colLayer::write_best_param(FILE *log_file, int &best_mc, int &best_nc, int &best_kc, int &best_rb, int &best_cb, 
+void ConvIm2colLayer::write_best_param(const char *log_path, int &best_mc, int &best_nc, int &best_kc, int &best_rb, int &best_cb, 
                                        int &best_pc, int &best_pb, int &best_pre_a, int &best_pre_b, int &best_pre_c) {
-    fprintf(log_file, "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", 
+    FILE *log_file = fopen(log_path, "a+");
+    this->mc = best_mc;
+    this->nc = best_nc;
+    this->kc = best_kc;
+    this->row_batch = best_rb;
+    this->col_batch = best_cb;
+    this->pack_c_version = best_pc;
+    this->mt_pack_b_version = best_pb;
+    this->prefetch_a = best_pre_a;
+    this->prefetch_b = best_pre_b;
+    this->prefetch_c = best_pre_c;
+    if (log_file != nullptr)
+    	fprintf(log_file, "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", 
                 this->M, this->N, this->K, best_mc, best_nc, best_kc, best_rb, best_cb, 
                 this->gemm_version, best_pc, best_pb, best_pre_a, best_pre_b, best_pre_c);
+    else 
+	printf("write best param error.\n");
+    fclose(log_file);
 }
 
 int ConvIm2colLayer::Init() {
@@ -218,23 +239,21 @@ int ConvIm2colLayer::Forward() {
 
 int ConvIm2colLayer::Tuning() {
     const char *log_path;
-    FILE *log_file;
     bool is_log_entry_exist = false;
 #ifdef __APPLE__
     log_path = "./gemm_log/mac_tuning_log";
 #else
     log_path = "./gemm_log/linux_tuning_log";
 #endif
-    is_log_entry_exist = search_log_file_and_entry(log_path, log_file);
+    is_log_entry_exist = search_log_file_and_entry(log_path);
     if (is_log_entry_exist) {   // the entry exists
-        printf("log file exists.\n");
-        this->Init();
-        this->Forward();
+        printf("log entry exists.\n");
+	return 1;
     } else {     // the entry dosen't exist
-        printf("log file doesn't exist.\n");
+        printf("log entry doesn't exist.\n");
         int best_mc, best_nc, best_kc, best_rb, best_cb, best_pc, best_pb, best_pre_a, best_pre_b, best_pre_c;
         this->search_best_param(best_mc, best_nc, best_kc, best_rb, best_cb, best_pc, best_pb, best_pre_a, best_pre_b, best_pre_c);
-        this->write_best_param(log_file, best_mc, best_nc, best_kc, best_rb, best_cb, best_pc, best_pb, best_pre_a, best_pre_b, best_pre_c);
+        this->write_best_param(log_path, best_mc, best_nc, best_kc, best_rb, best_cb, best_pc, best_pb, best_pre_a, best_pre_b, best_pre_c);
     }
     return 1;
 }

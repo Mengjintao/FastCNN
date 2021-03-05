@@ -135,10 +135,10 @@ int main(int argc, char* argv[]){
     float Ret = diff(conv.output_data, convNEON.output_data, outputChannels* outputDim.height * outputDim.width);
 
     ConvIm2colLayer convIm2col(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
+    convIm2col.Tuning();
     convIm2col.Init();
     timer.startBench();
-    // convIm2col.Forward();
-    convIm2col.Tuning();
+    convIm2col.Forward();
     timer.endBench("ConvIm2colLayer wall clock: ");
     Ret = diff(conv.output_data, convIm2col.output_data, outputChannels * outputDim.height * outputDim.width);
 
