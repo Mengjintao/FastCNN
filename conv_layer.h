@@ -57,8 +57,30 @@ class ConvLayer
 	    //Output
             output_width = (input_width + padding_left + padding_right - kernel_width) / stride_width + 1;
             output_height = (input_height + padding_top + padding_bottom - kernel_height) / stride_height + 1;
+	    input_data  = (float *) malloc(input_channels * input_width * input_height * sizeof(float));
+	    kernel_data = (float *) malloc(input_channels * output_channels * kw * kh  * sizeof(float));
+	    bias_data   = (float *) malloc(output_channels * output_width * output_height * sizeof(float));
+
+	    memcpy(input_data, input, input_channels * input_width * input_height * sizeof(float));
+	    memcpy(kernel_data, kernel, input_channels * output_channels * kw * kh  * sizeof(float));
+	    if(biasw)
+	    	memcpy(bias_data, biasw, output_channels * output_width * output_height * sizeof(float));
+
    	    output_data = (float *) malloc(output_channels * output_width * output_height * sizeof(float)); 
         }
+
+	~ConvLayer()
+	{
+		free(input_data);
+		free(kernel_data);
+		free(bias_data);
+		free(output_data);
+		input_data = NULL;
+		kernel_data = NULL;
+		output_data = NULL;
+		bias_data  = NULL;
+	}
+
 /*
         int GenerateTopBlobs()
         {
@@ -97,7 +119,7 @@ class ConvLayer
             return -1;
         }
 
-	virtual int Tuning()
+	virtual int Tuning(float *Res=NULL)
 	{
 	    return -1;
 	}	
