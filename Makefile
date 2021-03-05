@@ -7,10 +7,10 @@ CXX = g++
 CXX_SRC=./winoF63/winoF63.cpp ./utility/helper.cpp ./utility/common.cpp ./winoF63/TensorGEMM.cpp ConvTest.cpp
 CXX_SRC+=./im2col/gemm_kernel.cpp ./im2col/gemm_pack.cpp ./convLayer/im2colConv.cpp
 
-CXX_FLAGS = -std=c++11 $(DEFS) -Wno-format -I$(PWD) -O3 -fopenmp
-# CXX_FLAGS = -std=c++11 $(DEFS) -Wno-format -I$(PWD) -O3 -Xpreprocessor -fopenmp
-LD_FLAGS= -pie -pthread -std=c++11 -fopenmp
-# LD_FLAGS= -pie -pthread -std=c++11 -Xpreprocessor -fopenmp -lomp
+# CXX_FLAGS = -std=c++11 $(DEFS) -Wno-format -I$(PWD) -O3 -fopenmp
+CXX_FLAGS = -std=c++11 $(DEFS) -Wno-format -I$(PWD) -O3 -Xpreprocessor -fopenmp
+# LD_FLAGS= -pie -pthread -std=c++11 -fopenmp
+LD_FLAGS= -pie -pthread -std=c++11 -Xpreprocessor -fopenmp -lomp
 CXX_FLAGS+=-march=armv8-a
 
 #LD_FLAGS= -pie -pthread -fopenmp -static-libstdc++ -static-openmp -O3

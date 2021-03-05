@@ -1,6 +1,201 @@
 #include "im2colConv.h"
 #include "../utility/common.h"
+#include <vector>
 #include <omp.h>
+
+struct RegisterKernel {
+    int row_batch;
+    int col_batch;
+
+    RegisterKernel() {}
+    RegisterKernel(int row, int col) : row_batch(row), col_batch(col) {}
+};
+
+void ConvIm2colLayer::select_tuning_range_for_mnk(size_t &l1_bound, size_t &l2_bound,
+                                                  int &mc_begin, int &mc_end, int &mc_step, 
+                                                  int &nc_begin, int &nc_end, int &nc_step, 
+                                                  int &kc_begin, int &kc_end, int &kc_step) {
+    mc_begin = 8;
+    mc_end   = 32 - 1;
+    mc_step  = 24;
+    
+    kc_step  = this->col_batch;
+    kc_end   = ((size_t)(this->K * mc_begin) < l1_bound 
+                    ? align_ceil(this->K, kc_step) 
+                    : align_ceil(l1_bound/(size_t)mc_begin, kc_step));
+    kc_begin = align_ceil(kc_end/8, kc_step);
+
+    nc_step  = this->col_batch;
+    nc_end   = (this->N < 1024 ? align_ceil(this->N, this->col_batch) : 1024);
+    nc_begin = align_ceil(nc_end/8, nc_step);
+    
+}
+
+void ConvIm2colLayer::select_tuning_range_for_pack(int &pc_begin, int &pc_end, int &pc_step,
+                                                   int &pb_begin, int &pb_end, int &pb_step) {
+    pb_begin = 0;
+    pb_step  = 1;
+    pb_end   = 1 - 1;
+    if (gemm_version != GEMM_BLOCKS_MULTI_THREADS)
+        pb_end = 2;
+    
+    pc_begin = 0;
+    pc_step  = 1;
+    pc_end   = 1 - 1;
+}
+
+void ConvIm2colLayer::select_tuning_range_for_prefetch(int &pre_a_begin, int &pre_a_end, int &pre_a_step,
+                                                       int &pre_b_begin, int &pre_b_end, int &pre_b_step,
+                                                       int &pre_c_begin, int &pre_c_end, int &pre_c_step) {
+    pre_a_begin = 256;
+    pre_a_step  = 256;
+    pre_a_end   = 512;
+
+    pre_b_begin = 256;
+    pre_b_step  = 256;
+    pre_b_end   = 512;
+
+    pre_c_begin = 0;
+    pre_c_step  = 256;
+    pre_c_end   = 256 - 1;
+}
+
+bool ConvIm2colLayer::search_log_file_and_entry(const char *log_path, FILE* &log_file) {
+    bool is_log_entry_exist = false;
+    log_file = fopen(log_path, "a+");
+    fseek(log_file, 0, SEEK_SET);
+    int M, N, K, mc, nc, kc, row_batch, col_batch, gemm_version, pc_version, pb_version, pre_a, pre_b, pre_c;
+    if (log_file != nullptr) {
+        while (fscanf(log_file, "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", 
+                    &M, &N, &K, &mc, &nc, &kc, &row_batch, &col_batch, &gemm_version, &pc_version, &pb_version, &pre_a, &pre_b, &pre_c) != EOF) {
+            if (M == this->M && N == this->N && K == this->K && gemm_version == this->gemm_version) {
+                is_log_entry_exist = true;
+                this->mc = mc;
+                this->nc = nc; 
+                this->kc = kc;
+                this->row_batch = row_batch;
+                this->col_batch = col_batch;
+                this->pack_c_version = pc_version; 
+                this->mt_pack_b_version = pb_version;
+                this->prefetch_a = pre_a;
+                this->prefetch_b = pre_b;
+                this->prefetch_c = pre_c;
+            }
+        }
+    }
+    return is_log_entry_exist;
+}
+
+void ConvIm2colLayer::search_best_param(int &best_mc, int &best_nc, int &best_kc, int &best_rb, int &best_cb,
+                                        int &best_pc, int &best_pb, int &best_pre_a, int &best_pre_b, int &best_pre_c) {
+    size_t l1_cache_size_per_core = 65536;
+    size_t l2_cache_size_per_core = 524288;
+    get_cache_info(l1_cache_size_per_core, l2_cache_size_per_core);
+    size_t l1_bound = l1_cache_size_per_core / 2 / sizeof(float);
+    size_t l2_bound = l2_cache_size_per_core / 2 / sizeof(float);
+    printf("l1cache:%dbytes\n", l1_cache_size_per_core);
+    printf("l2cache:%dbytes\n", l2_cache_size_per_core);
+
+    Timer timer;
+    int n_loop = 10;
+    double elapsed_time;
+    double best_time = static_cast<double>(INT64_MAX);
+    RegisterKernel best_kernel;
+
+    std::vector<RegisterKernel> kernels;
+    kernels.push_back(RegisterKernel(8, 8));
+    kernels.push_back(RegisterKernel(8, 12));
+    kernels.push_back(RegisterKernel(4, 16));
+    int mc_begin, mc_end, mc_step, nc_begin, nc_end, nc_step, kc_begin, kc_end, kc_step;
+    int pc_begin, pc_end, pc_step, pb_begin, pb_end, pb_step;
+    int pre_a_begin, pre_a_end, pre_a_step, pre_b_begin, pre_b_end, pre_b_step, pre_c_begin, pre_c_end, pre_c_step;
+
+    printf("tuning begin...\n");
+    
+    for (std::vector<RegisterKernel>::iterator it = kernels.begin(); it != kernels.end(); it++) {
+        this->row_batch = it->row_batch;
+        this->col_batch = it->col_batch;
+        select_tuning_range_for_mnk(l1_cache_size_per_core, l2_cache_size_per_core, mc_begin, mc_end, mc_step, nc_begin, nc_end, nc_step, kc_begin, kc_end, kc_step);
+        select_tuning_range_for_pack(pc_begin, pc_end, pc_step, pb_begin, pb_end, pb_step);
+        select_tuning_range_for_prefetch(pre_a_begin, pre_a_end, pre_a_step, pre_b_begin, pre_b_end, pre_b_step, pre_c_begin, pre_c_end, pre_c_step);
+
+        long long int cur_round = 0;
+        long long int total_round = ((long long int)((mc_end - mc_begin + mc_step - 1) / mc_step) 
+                                   * (long long int)((nc_end - nc_begin + nc_step - 1) / nc_step) 
+                                   * (long long int)((kc_end - kc_begin + kc_step - 1) / kc_step));
+
+        printf("mc_range_%lld\n", (long long int)((mc_end - mc_begin) / mc_step));
+        printf("nc_range_%lld\n", (long long int)((nc_end - nc_begin) / nc_step));
+        printf("kc_range_%lld\n", (long long int)((kc_end - kc_begin) / kc_step));
+
+        printf("This register kernel is %d x %d\n", this->row_batch, this->col_batch);
+        printf("cur/total round of this kernel: %d/%lld\n", 1, total_round);
+
+        for (int m = mc_begin; m <= mc_end; m += mc_step) {
+            for (int n = nc_begin; n <= nc_end; n += nc_step) {
+                for (int k = kc_begin; k <= kc_end; k += kc_step) {
+                    if ((size_t)(m * k) > l1_bound || (size_t)(k * n) > l2_bound) {
+                        cur_round += (kc_end - k) / kc_step;
+                        break;
+                    }
+                    cur_round++;
+                    if (cur_round % 50 == 0) {
+                        printf("==============================\n");
+                        printf("cur/total round of this kernel: %d/%lld\n", cur_round, total_round);
+                        printf("best time: %fms\n", best_time);
+                    }
+                    for (int pc_version = pc_begin; pc_version <= pc_end; pc_version += pc_step) {
+                        for (int pb_version = pb_begin; pb_version <= pb_end; pb_version += pb_step) {
+                            for (int pre_a = pre_a_begin; pre_a <= pre_a_end; pre_a += pre_a_step) {
+                                for (int pre_b = pre_b_begin; pre_b <= pre_b_end; pre_b += pre_b_step) {
+                                    for (int pre_c = pre_c_begin; pre_c <= pre_c_end; pre_c += pre_b_step) {
+                                        this->mc = m; 
+                                        this->nc = n; 
+                                        this->kc = k;
+                                        this->pack_c_version = pc_version; 
+                                        this->mt_pack_b_version = pb_version;
+                                        this->prefetch_a = pre_a;
+                                        this->prefetch_b = pre_b;
+                                        this->prefetch_c = pre_c;
+                                        
+                                        this->Init();
+                            
+                                        timer.startBench();
+                                        for (int i = 0; i < n_loop; i++) 
+                                            this->Forward();
+                                        elapsed_time = timer.endBench(n_loop);
+                                        
+                                        if (elapsed_time < best_time) {
+                                            best_time = elapsed_time;
+                                            printf("update best time: %fms\n", best_time);
+                                            best_mc = m;
+                                            best_nc = n;
+                                            best_kc = k;
+                                            best_rb = it->row_batch;
+                                            best_cb = it->col_batch;
+                                            best_pc = pc_version;
+                                            best_pb = pb_version;
+                                            best_pre_a = pre_a;
+                                            best_pre_b = pre_b;
+                                            best_pre_c = pre_c;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void ConvIm2colLayer::write_best_param(FILE *log_file, int &best_mc, int &best_nc, int &best_kc, int &best_rb, int &best_cb, 
+                                       int &best_pc, int &best_pb, int &best_pre_a, int &best_pre_b, int &best_pre_c) {
+    fprintf(log_file, "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", 
+                this->M, this->N, this->K, best_mc, best_nc, best_kc, best_rb, best_cb, 
+                this->gemm_version, best_pc, best_pb, best_pre_a, best_pre_b, best_pre_c);
+}
 
 int ConvIm2colLayer::Init() {
     this->set_pack_a();
@@ -15,13 +210,32 @@ int ConvIm2colLayer::Init() {
 }
 
 int ConvIm2colLayer::Forward() {
-    this->im2col();
-    // this->im2col_v1();
+    // this->im2col();
+    this->im2col_v1();
     this->sgemm();
     return 1;
 }
 
 int ConvIm2colLayer::Tuning() {
+    const char *log_path;
+    FILE *log_file;
+    bool is_log_entry_exist = false;
+#ifdef __APPLE__
+    log_path = "./gemm_log/mac_tuning_log";
+#else
+    log_path = "./gemm_log/linux_tuning_log";
+#endif
+    is_log_entry_exist = search_log_file_and_entry(log_path, log_file);
+    if (is_log_entry_exist) {   // the entry exists
+        printf("log file exists.\n");
+        this->Init();
+        this->Forward();
+    } else {     // the entry dosen't exist
+        printf("log file doesn't exist.\n");
+        int best_mc, best_nc, best_kc, best_rb, best_cb, best_pc, best_pb, best_pre_a, best_pre_b, best_pre_c;
+        this->search_best_param(best_mc, best_nc, best_kc, best_rb, best_cb, best_pc, best_pb, best_pre_a, best_pre_b, best_pre_c);
+        this->write_best_param(log_file, best_mc, best_nc, best_kc, best_rb, best_cb, best_pc, best_pb, best_pre_a, best_pre_b, best_pre_c);
+    }
     return 1;
 }
 
@@ -177,7 +391,7 @@ void ConvIm2colLayer::GEMM_v2(float* A, float* B, float* C) {
     float *packA = static_cast<float*>(_mm_malloc(M * kc * sizeof(float))); 
     float *packB = static_cast<float*>(_mm_malloc(packBC_height * packBC_width * sizeof(float)));
     float *packC = C;
-    if (this->is_pack_c != 0)
+    if (this->pack_c_version != 0)
         packC = packB + packB_height * packB_width;
 
     // A中的一大整列M * kc，B中的一大整行kc * N
@@ -212,19 +426,19 @@ void ConvIm2colLayer::GEMM_v2(float* A, float* B, float* C) {
                 int packC_copy_step;
                 int packC_col;
 
-                if (this->is_pack_c == 0) {
+                if (this->pack_c_version == 0) {
                     packC_ptr_step = 1;
                     packC_copy_step = ldc;
                     packC_copy = C_copy;
                     packC_col = ldc;
                 }
-                else if (this->is_pack_c == 1) {
+                else if (this->pack_c_version == 1) {
                     packC_ptr_step = 1;
                     packC_copy_step = nc_ceil;
                     packC_copy = packC;
                     packC_col = nc_ceil;
                 }
-                else if (this->is_pack_c == 2) {
+                else if (this->pack_c_version == 2) {
                     packC_ptr_step = mc_adjust;
                     packC_copy_step = col_batch;
                     packC_copy = packC;
@@ -352,19 +566,19 @@ void ConvIm2colLayer::GEMM_multithread(float* A, float* B, float* C) {
                         int packC_copy_step;
                         int packC_col;
                         
-                        if (this->is_pack_c == 0) {
+                        if (this->pack_c_version == 0) {
                             packC_ptr_step = 1;
                             packC_copy_step = ldc;
                             packC_copy = C_copy;
                             packC_col = ldc;
                         }
-                        else if (this->is_pack_c == 1) {
+                        else if (this->pack_c_version == 1) {
                             packC_ptr_step = 1;
                             packC_copy_step = nc_ceil;
                             packC_copy = packC + tid * mc * packBC_width;
                             packC_col = nc_ceil;
                         }
-                        else if (this->is_pack_c == 2) {
+                        else if (this->pack_c_version == 2) {
                             packC_ptr_step = mc_adjust;
                             packC_copy_step = col_batch;
                             packC_copy = packC + tid * mc * packBC_width;
@@ -477,23 +691,23 @@ void ConvIm2colLayer::set_pack_b_mt() {
 
 void ConvIm2colLayer::set_pack_c() {
     if (row_batch == 8 && col_batch == 8) {
-        if (is_pack_c == 0)
+        if (pack_c_version == 0)
             this->pack_c = nullptr;
-        else if (is_pack_c == 1)
+        else if (pack_c_version == 1)
             this->pack_c = load_c_v2_8x8;
         else
             this->pack_c = load_c_v2_8x8_pack;
     } else if (row_batch == 8 && col_batch == 12) {
-        if (is_pack_c == 0)
+        if (pack_c_version == 0)
             this->pack_c = nullptr;
-        else if (is_pack_c == 1)
+        else if (pack_c_version == 1)
             this->pack_c = load_c_v2_8x12;
         else
             this->pack_c = load_c_v2_8x12_pack;
     } else if (row_batch == 4 && col_batch == 16) {
-        if (is_pack_c == 0)
+        if (pack_c_version == 0)
             this->pack_c = nullptr;
-        else if (is_pack_c == 1)
+        else if (pack_c_version == 1)
             this->pack_c = load_c_v2_4x16;
         else
             this->pack_c = load_c_v2_4x16_pack;
@@ -502,23 +716,23 @@ void ConvIm2colLayer::set_pack_c() {
 
 void ConvIm2colLayer::set_unpack_c() {
     if (row_batch == 8 && col_batch == 8) {
-        if (is_pack_c == 0)
+        if (pack_c_version == 0)
             this->unpack_c = nullptr;
-        else if (is_pack_c == 1)
+        else if (pack_c_version == 1)
             this->unpack_c = write_c_v2_8x8;
         else
             this->unpack_c = write_c_v2_8x8_unpack;
     } else if (row_batch == 8 && col_batch == 12) {
-        if (is_pack_c == 0)
+        if (pack_c_version == 0)
             this->unpack_c = nullptr;
-        else if (is_pack_c == 1)
+        else if (pack_c_version == 1)
             this->unpack_c = write_c_v2_8x12;
         else
             this->unpack_c = write_c_v2_8x12_unpack;
     } else if (row_batch == 4 && col_batch == 16) {
-        if (is_pack_c == 0)
+        if (pack_c_version == 0)
             this->unpack_c = nullptr;
-        else if (is_pack_c == 1)
+        else if (pack_c_version == 1)
             this->unpack_c = write_c_v2_4x16;
         else
             this->unpack_c = write_c_v2_4x16_unpack;
@@ -527,17 +741,17 @@ void ConvIm2colLayer::set_unpack_c() {
 
 void ConvIm2colLayer::set_inner_kernel() {
     if (row_batch == 8 && col_batch == 8) {
-        if (is_pack_c == 0 || is_pack_c == 1)
+        if (pack_c_version == 0 || pack_c_version == 1)
             this->inner_kernel = kernel_8x8;
         else
             this->inner_kernel = kernel_8x8_packC;
     } else if (row_batch == 8 && col_batch == 12) {
-        if (is_pack_c == 0 || is_pack_c == 1)
+        if (pack_c_version == 0 || pack_c_version == 1)
             this->inner_kernel = kernel_8x12;
         else
             this->inner_kernel = kernel_8x12_packC;
     } else if (row_batch == 4 && col_batch == 16) {
-        if (is_pack_c == 0 || is_pack_c == 1)
+        if (pack_c_version == 0 || pack_c_version == 1)
             this->inner_kernel = kernel_4x16;
         else
             this->inner_kernel = kernel_4x16_packC;
@@ -546,17 +760,17 @@ void ConvIm2colLayer::set_inner_kernel() {
 
 void ConvIm2colLayer::set_inner_kernel_for_corner(int k) {
     if (row_batch == 8 && col_batch == 8) {
-        if (is_pack_c == 0 || is_pack_c == 1)
+        if (pack_c_version == 0 || pack_c_version == 1)
             this->inner_kernel_for_corner = get_kernel_Nx8(k);
         else
             this->inner_kernel_for_corner = get_kernel_Nx8_packC(k);
     } else if (row_batch == 8 && col_batch == 12) {
-        if (is_pack_c == 0 || is_pack_c == 1)
+        if (pack_c_version == 0 || pack_c_version == 1)
             this->inner_kernel_for_corner = get_kernel_Nx12(k);
         else
             this->inner_kernel_for_corner = get_kernel_Nx12_packC(k);
     } else if (row_batch == 4 && col_batch == 16) {
-        if (is_pack_c == 0 || is_pack_c == 1)
+        if (pack_c_version == 0 || pack_c_version == 1)
             this->inner_kernel_for_corner = get_kernel_Nx16(k);
         else
             this->inner_kernel_for_corner = get_kernel_Nx16_packC(k);
