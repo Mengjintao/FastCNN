@@ -86,17 +86,17 @@ void retransformKernel2(float* kernel, int outputChannels, int inputChannels, in
     tmp = NULL;
 }
 
-void retransformKernel(float* kernel, int outputChannels, int inputChannels, int ocBlock)
+void retransformKernel(float* kernel, int outputChannels, int inputChannels, int ocRBlock)
 {
-    assert(outputChannels % ocBlock ==0);
+//    assert(outputChannels % ocBlock ==0);
 
-    float *tmp = (float *) malloc(ocBlock*inputChannels*9*sizeof(float));
+    float *tmp = (float *) malloc(ocRBlock*inputChannels*9*sizeof(float));
 
-    for(int oc=0; oc<outputChannels; oc+=ocBlock)
+    for(int oc=0; oc<outputChannels; oc+=ocRBlock)
     {
-        int ocEnd  = oc+ocBlock<outputChannels?oc+ocBlock:outputChannels;
+        int ocEnd  = oc+ocRBlock<outputChannels?oc+ocRBlock:outputChannels;
         int ocStep = ocEnd - oc;
-//        for(int i=0; i<ocBlock; i++)
+//        for(int i=0; i<ocRBlock; i++)
         for(int i=0; i<ocStep; i++)
             for(int j=0; j<inputChannels; j++)
             {
@@ -847,6 +847,7 @@ void offlineKernelTransform(float *offlineKernel, float* testKernel, int outputC
     float32x4_t l0, l1, l2, l3, l4, l5, l6, l7;
     float32x4_t r0, r1, r2, r3, r4, r5, r6, r7;
     float32x4_t m1, m2, s1, s2, t1, t2;//Auxiliary registers
+    const float32x4_t vZero = vdupq_n_f32(0.0f);
 
     const float32x4_t f4 = vdupq_n_f32(4.0f);
     const float32x4_t f2 = vdupq_n_f32(2.0f);
@@ -856,9 +857,13 @@ void offlineKernelTransform(float *offlineKernel, float* testKernel, int outputC
             int ocStep = ocEnd - oc;
 
             int lineWidth = 4*ocRegBlock*inputChannels;
-            for(int kN=0; kN<ocBlock; kN+=ocRegBlock)
+//            for(int kN=0; kN<ocBlock; kN+=ocRegBlock)
+            for(int kN=0; kN<ocStep; kN+=ocRegBlock)
             {
                 //error is find here. there should be no oc inside the loops
+		int ocREnd = kN+ocRegBlock < ocStep? kN+ocRegBlock : ocStep;
+		int ocRStep = ocREnd - kN;
+
                 float *kernel= testKernel    + (oc+kN)*inputChannels*9;
                 float *pk0   = offlineKernel + (oc+kN)*inputChannels*64;
                 float *pk1   = pk0  + lineWidth;
@@ -878,7 +883,8 @@ void offlineKernelTransform(float *offlineKernel, float* testKernel, int outputC
                 float *pk15  = pk14 + lineWidth;
 
                 for(int ic=0; ic<inputChannels; ic++)
-                    for(int kRN=0; kRN<ocRegBlock; kRN++)
+		{
+                    for(int kRN=0; kRN<ocRStep; kRN++)
                     {
                         //printTensor(kernel, 3, 3);
                         l0 = vld1q_f32(kernel);
@@ -925,6 +931,42 @@ void offlineKernelTransform(float *offlineKernel, float* testKernel, int outputC
                         vst1q_f32(pk15,  r7);
                         pk15 +=4;
                     }
+		    for(int kRN=ocRStep; kRN<ocRegBlock; kRN++)
+		    {
+                        vst1q_f32(pk0,   vZero);
+                        pk0  +=4;
+                        vst1q_f32(pk1,   vZero);
+                        pk1  +=4;
+                        vst1q_f32(pk2,   vZero);
+                        pk2  +=4;
+                        vst1q_f32(pk3,   vZero);
+                        pk3  +=4;
+                        vst1q_f32(pk4,   vZero);
+                        pk4  +=4;
+                        vst1q_f32(pk5,   vZero);
+                        pk5  +=4;
+                        vst1q_f32(pk6,   vZero);
+                        pk6  +=4;
+                        vst1q_f32(pk7,   vZero);
+                        pk7  +=4;
+                        vst1q_f32(pk8,   vZero);
+                        pk8  +=4;
+                        vst1q_f32(pk9,   vZero);
+                        pk9  +=4;
+                        vst1q_f32(pk10,  vZero);
+                        pk10 +=4;
+                        vst1q_f32(pk11,  vZero);
+                        pk11 +=4;
+                        vst1q_f32(pk12,  vZero);
+                        pk12 +=4;
+                        vst1q_f32(pk13,  vZero);
+                        pk13 +=4;
+                        vst1q_f32(pk14,  vZero);
+                        pk14 +=4;
+                        vst1q_f32(pk15,  vZero);
+                        pk15 +=4;
+		    }
+		}
             }
     }
 }
@@ -943,12 +985,12 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
     int tileW = (inputWidth + padWidth*2  -2 + 5)/6;
     int tileN = tileH*tileW;
 
-    printf("%d %d\n", inputChannels, icBlock);
+//    printf("%d %d\n", inputChannels, icBlock);
     assert(inputChannels%icBlock  == 0);
     assert(tileBlock%tileRegBlock == 0);
 
-    assert(outputChannels%ocBlock == 0);
-//    assert(ocBlock%ocRegBlock     == 0);
+//    assert(outputChannels%ocBlock == 0);
+    assert(ocBlock%ocRegBlock     == 0);
 
     void (*tensorGEMM)(float *, const float *, float *, int, int);
     void (*funGEMM)(float *, const float *, float *, int, int);
@@ -1123,6 +1165,7 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
 #endif
 #endif
 
+//    printTensor(kernel, 32, 16);
     for(int oc=0; oc<outputChannels; oc+=ocBlock)
     {
         for(int tile=0; tile<tileN; tile+=tileBlock)
@@ -1245,14 +1288,13 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
                         vst1q_f32(pk15,  vZero);
                         pk15 +=4;
 		    }
-
 		}
             }
             kernelTran.accumBench();
 	    }
 
-//            printf("kernelTran\n");
-//            printTensor(kernelBuf, 32, 16);
+            //printf("kernelTran\n");
+            //printTensor(kernelBuf, 32, 16);
 
             int lineWidth = 4 * tileRegBlock * inputChannels;
             int stepSize = tileRegBlock*inputChannels*64 - tileRegBlock*4;
@@ -1527,7 +1569,6 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
 //            printf("inputTran\n");
 //            printTensor(inputBuf, 16, 16);
 
-
             GEMM.startBench();
             float *gemmBuf = buf + tileRegBlock*ocRegBlock*36;
 	    int cellSize   = tileRegBlock*ocRegBlock*64;
@@ -1541,8 +1582,8 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
                 int tileStepRmd = tileStep % tileRegBlock;
                 int tileStepEnd = tileStep - tileStepRmd;
 
-                float *pInputBuf  = inputBuf;
-                float *ext        = gemmBuf   + (kN/ocRegBlock*colStep)* cellSize;
+                float *pInputBuf = inputBuf;
+                float *ext       = gemmBuf   + (kN/ocRegBlock*colStep)* cellSize;
 		const float *pKernel;
 		pKernel = kernelBuf + ((enableOffKernel?oc:0) + kN) * inputChannels * 64;
 
@@ -1779,9 +1820,9 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
 
     }
 
-    kernelTran.printBench("kernel", 1);
+/*    kernelTran.printBench("kernel", 1);
     inputTran.printBench("inputTran", 1);
     GEMM.printBench("TensorGEMM", 1);
     outputTran.printBench("outputTran", 1);
-    return 1;
+ */   return 1;
 }
