@@ -1,5 +1,8 @@
 #include "im2colConv.h"
 #include "../utility/common.h"
+#include <dirent.h>
+#include <sys/types.h>
+#include <sys/stat.h> 
 #include <vector>
 #include <omp.h>
 
@@ -80,6 +83,7 @@ bool ConvIm2colLayer::search_log_file_and_entry(const char *log_path) {
                 this->prefetch_a = pre_a;
                 this->prefetch_b = pre_b;
                 this->prefetch_c = pre_c;
+                break;
             }
         }
     }
@@ -215,7 +219,7 @@ void ConvIm2colLayer::write_best_param(const char *log_path, int &best_mc, int &
                 this->M, this->N, this->K, best_mc, best_nc, best_kc, best_rb, best_cb, 
                 this->gemm_version, best_pc, best_pb, best_pre_a, best_pre_b, best_pre_c);
     else 
-	printf("write best param error.\n");
+	    printf("write best param error.\n");
     fclose(log_file);
 }
 
@@ -241,11 +245,14 @@ int ConvIm2colLayer::Forward() {
 int ConvIm2colLayer::Tuning() {
     const char *log_path;
     bool is_log_entry_exist = false;
+    if(opendir("./gemm_log") == nullptr)
+        mkdir("./gemm_log", 0775);
 #ifdef __APPLE__
     log_path = "./gemm_log/mac_tuning_log";
 #else
     log_path = "./gemm_log/linux_tuning_log";
 #endif
+
     is_log_entry_exist = search_log_file_and_entry(log_path);
     if (is_log_entry_exist) {   // the entry exists
         printf("log entry exists.\n");
