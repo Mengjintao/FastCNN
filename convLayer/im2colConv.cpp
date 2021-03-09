@@ -36,7 +36,7 @@ void ConvIm2colLayer::select_tuning_range_for_pack(int &pc_begin, int &pc_end, i
     pb_begin = 0;
     pb_step  = 1;
     pb_end   = 1 - 1;
-    if (gemm_version != GEMM_BLOCKS_MULTI_THREADS)
+    if (gemm_version == GEMM_BLOCKS_MULTI_THREADS)
         pb_end = 2;
     
     pc_begin = 0;
@@ -68,7 +68,7 @@ bool ConvIm2colLayer::search_log_file_and_entry(const char *log_path) {
     if (log_file != nullptr) {
         while (fscanf(log_file, "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", 
                     &M, &N, &K, &mc, &nc, &kc, &row_batch, &col_batch, &gemm_version, &pc_version, &pb_version, &pre_a, &pre_b, &pre_c) != EOF) {
-            if (M == this->M && N == this->N && K == this->K && gemm_version == this->gemm_version) {
+	    if (M == this->M && N == this->N && K == this->K && gemm_version == this->gemm_version) {
                 is_log_entry_exist = true;
                 this->mc = mc;
                 this->nc = nc; 
@@ -112,6 +112,7 @@ void ConvIm2colLayer::search_best_param(int &best_mc, int &best_nc, int &best_kc
     int pre_a_begin, pre_a_end, pre_a_step, pre_b_begin, pre_b_end, pre_b_step, pre_c_begin, pre_c_end, pre_c_step;
 
     printf("tuning begin...\n");
+    printf("M=%d, N=%d, K=%d\n", this->M, this->N, this->K);
     
     for (std::vector<RegisterKernel>::iterator it = kernels.begin(); it != kernels.end(); it++) {
         this->row_batch = it->row_batch;
@@ -125,9 +126,9 @@ void ConvIm2colLayer::search_best_param(int &best_mc, int &best_nc, int &best_kc
                             * (size_t)((nc_end - nc_begin) / nc_step + 1) 
                             * (size_t)((kc_end - kc_begin) / kc_step + 1));
 
-        printf("mc_range_%u\n", (size_t)((mc_end - mc_begin) / mc_step + 1));
-        printf("nc_range_%u\n", (size_t)((nc_end - nc_begin) / nc_step + 1));
-        printf("kc_range_%u\n", (size_t)((kc_end - kc_begin) / kc_step + 1));
+        printf("mc_begin=%d, mc_end=%d, mc_num=%u\n", mc_begin, mc_end, (size_t)((mc_end - mc_begin) / mc_step + 1));
+        printf("nc_begin=%d, nc_end=%d, nc_num=%u\n", nc_begin, nc_end, (size_t)((nc_end - nc_begin) / nc_step + 1));
+        printf("kc_begin=%d, kc_end=%d, kc_num=%u\n", kc_begin, kc_end, (size_t)((kc_end - kc_begin) / kc_step + 1));
 
         printf("This register kernel is %d x %d\n", this->row_batch, this->col_batch);
         printf("==============================\n");

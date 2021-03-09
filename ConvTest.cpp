@@ -103,18 +103,28 @@ int main(int argc, char* argv[]){
     int stride_height = 1;
     bool enableOffKernel = 0;
 
-    if(argc != 5){
+    if(argc != 8){
 	printf("%d\n", argc);
-	printf("usage: ./wingorad_dev [in_channels] [out_channels] [image dim] [tileBlock] [ocBlock] [icBlock] [#threads]\n");
+//	printf("usage: ./wingorad_dev [in_channels] [out_channels] [image dim] [tileBlock] [ocBlock] [icBlock] [#threads]\n");
+	printf("usage: ./wingorad_dev [in_channels] [out_channels] [image dim] [kernel dim] [paddings] [strides] [#threads]\n");
 	return 0;
     } else {
-	inputChannels   = atoi(argv[1]);
-	outputChannels  = atoi(argv[2]);
-	inputDim.width  = atoi(argv[3]);
-	inputDim.height = inputDim.width;
-    	num_threads     = atoi(argv[4]);
+	inputChannels    = atoi(argv[1]);
+	outputChannels   = atoi(argv[2]);
+	inputDim.width   = atoi(argv[3]);
+	inputDim.height  = inputDim.width;
+	kernelDim.width  = atoi(argv[4]);
+	kernelDim.height = kernelDim.width;
+	paddings.top     = atoi(argv[5]);
+	paddings.bottom  = paddings.top;
+	paddings.left    = paddings.top;
+	paddings.right   = paddings.top;
+	stride_width     = atoi(argv[6]);
+	stride_height    = stride_width;
+    	num_threads      = atoi(argv[7]);
 	
-	printf("Testing ic=%d oc=%d width=%d tileBlock=%d ocBlock=%d icBlock=%d threads=%d\n", inputChannels, outputChannels, inputDim.width, tileBlock, ocBlock, icBlock, num_threads);
+//      printf("Testing ic=%d oc=%d width=%d tileBlock=%d ocBlock=%d icBlock=%d threads=%d\n", inputChannels, outputChannels, inputDim.width, tileBlock, ocBlock, icBlock, num_threads);
+      	printf("Testing ic=%d oc=%d width=%d kernel_width=%d paddings=%d stride=%d threads=%d\n", inputChannels, outputChannels, inputDim.width, kernelDim.width, paddings.top, stride_width, num_threads);
     } 
  
     float* testInput  = (float *) malloc(sizeof(float) * inputDim.height  * inputDim.width  * inputChannels);
@@ -123,32 +133,32 @@ int main(int argc, char* argv[]){
     fillTestInput(testInput, inputChannels, inputDim);
     fillTestKernel(testKernel, inputChannels, outputChannels, kernelDim);
 
-    ConvNaiveLayer conv(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
-    timer.startBench();
-    conv.Forward();
-    timer.endBench("ConvNaiveLayer wall clock: ");
+//    ConvNaiveLayer conv(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels, kernelDim.height, kernelDim.width, stride_height, stride_width, paddings.left, paddings.right, paddings.top, paddings.bottom);
+//    timer.startBench();
+//    conv.Forward();
+//    timer.endBench("ConvNaiveLayer wall clock: ");
 
-    ConvNaiveNEONLayer convNEON(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
-    timer.startBench();
-    convNEON.Forward();
-    timer.endBench("ConvNaiveNCNNLayer wall clock: ");
-    float Ret = diff(conv.output_data, convNEON.output_data, outputChannels* outputDim.height * outputDim.width);
+//    ConvNaiveNEONLayer convNEON(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
+//    timer.startBench();
+//    convNEON.Forward();
+//    timer.endBench("ConvNaiveNCNNLayer wall clock: ");
+//    float Ret = diff(conv.output_data, convNEON.output_data, outputChannels* outputDim.height * outputDim.width);
 
-    ConvIm2colLayer convIm2col(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
+    ConvIm2colLayer convIm2col(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels, kernelDim.height, kernelDim.width, stride_height, stride_width, paddings.left, paddings.right, paddings.top, paddings.bottom);
     convIm2col.Tuning();
     convIm2col.Init();
     timer.startBench();
     convIm2col.Forward();
     timer.endBench("ConvIm2colLayer wall clock: ");
-    Ret = diff(conv.output_data, convIm2col.output_data, outputChannels * outputDim.height * outputDim.width);
+//    float Ret = diff(conv.output_data, convIm2col.output_data, outputChannels * outputDim.height * outputDim.width);
 
-    ConvWinoF63Layer convWinoF63(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
+//    ConvWinoF63Layer convWinoF63(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
 //    convWinoF63.Init();
-    timer.startBench();
+//    timer.startBench();
 //    convWinoF63.Forward();
-    convWinoF63.Tuning(conv.output_data);
-    timer.endBench("ConvWinoF63Layer wall clock: ");
-    Ret = diff(conv.output_data, convWinoF63.output_data, outputChannels* outputDim.height * outputDim.width);
+//    convWinoF63.Tuning(conv.output_data);
+//    timer.endBench("ConvWinoF63Layer wall clock: ");
+//    Ret = diff(conv.output_data, convWinoF63.output_data, outputChannels* outputDim.height * outputDim.width);
 
 /*
     float *WT = (float *) malloc(sizeof(float) * 64 * (inputDim.width / 2 - 1) * (inputDim.height / 2 - 1) * outputChannels);
