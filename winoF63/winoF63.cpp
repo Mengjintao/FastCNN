@@ -1819,10 +1819,10 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
         }
 
     }
-
-/*    kernelTran.printBench("kernel", 1);
+/*
+    kernelTran.printBench("kernel", 1);
     inputTran.printBench("inputTran", 1);
     GEMM.printBench("TensorGEMM", 1);
     outputTran.printBench("outputTran", 1);
- */   return 1;
+*/    return 1;
 }
