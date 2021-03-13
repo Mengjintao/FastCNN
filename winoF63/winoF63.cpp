@@ -1293,7 +1293,7 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
             kernelTran.accumBench();
 	    }
 
-            //printf("kernelTran\n");
+//            printf("kernelTran\n");
             //printTensor(kernelBuf, 32, 16);
 
             int lineWidth = 4 * tileRegBlock * inputChannels;
@@ -1577,7 +1577,8 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
 	    int inputStep  = inputChannels * tileRegBlock * 4;
 	    int kernelStep = inputChannels * ocRegBlock   * 4;
 	    int tensorStep = tileRegBlock*4;
-            for(int kN=0; kN<ocBlock; kN+=ocRegBlock)
+//            for(int kN=0; kN<ocBlock; kN+=ocRegBlock)
+            for(int kN=0; kN<ocStep; kN+=ocRegBlock)
             {
                 int tileStepRmd = tileStep % tileRegBlock;
                 int tileStepEnd = tileStep - tileStepRmd;
@@ -1586,7 +1587,8 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
                 float *ext       = gemmBuf   + (kN/ocRegBlock*colStep)* cellSize;
 		const float *pKernel;
 		pKernel = kernelBuf + ((enableOffKernel?oc:0) + kN) * inputChannels * 64;
-
+//		printf("oc=%d ocBlock=%d ocStep=%d kN=%d\n", oc, ocBlock, ocStep, kN);
+//		printf("kernel pos %d\n", (pKernel-kernelBuf)/(inputChannels * 64));
                 for(int tN=0; tN<tileStepEnd; tN+=tileRegBlock)
                 {
                     const float *pKernelBuf = pKernel;
@@ -1598,7 +1600,7 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
                         pKernelBuf += kernelStep;
                     }
                 }
-
+		
                 if(tileStepRmd)
                 {
                     const float *pKernelBuf = pKernel;
@@ -1612,6 +1614,7 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
                 }
             }
             GEMM.accumBench();
+//	    printf("GEMM Step\n");
 
 	    outputTran.startBench();
             memset(buf, 0, sizeof(float)*36*tileRegBlock*ocRegBlock);
@@ -1824,5 +1827,6 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
     inputTran.printBench("inputTran", 1);
     GEMM.printBench("TensorGEMM", 1);
     outputTran.printBench("outputTran", 1);
-*/    return 1;
+*/
+    return 1;
 }

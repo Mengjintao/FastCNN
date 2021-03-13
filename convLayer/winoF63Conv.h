@@ -33,7 +33,7 @@ class ConvWinoF63Layer : public ConvLayer
 	    
 	icBlock = input_channels;
 	num_threads = 1;
-	enableOffKernel = 0;
+	enableOffKernel = 1;
 
 
 	tileBlock    = 20;
@@ -46,13 +46,13 @@ class ConvWinoF63Layer : public ConvLayer
     	int tileN = tileH*tileW;
 	float *kernel_temp = (float *) malloc(input_channels * (output_channels+7) * kernel_width * kernel_height  * sizeof(float));
 
-	int InnerK_oc[10]={3,3,4,4,5,5,6,6,7,7};	
-	int InnerK_tl[10]={7,6,5,4,4,3,4,3,3,2};	
+	int InnerK_oc[7]={3,3,4,4,5,6,7};	
+	int InnerK_tl[7]={7,6,5,4,4,3,3};	
 
 	double minTimeusage=1e100;
 	int max_tuning_num=4000;
-	int num = (int) sqrt(max_tuning_num/10.0);
-	for(int ik=0;ik<10;ik++)
+	int num = (int) sqrt(max_tuning_num/7.0);
+	for(int ik=0;ik<7;ik++)
 	{
 		ocRegBlock=InnerK_oc[ik];
 		tileRegBlock=InnerK_tl[ik];
@@ -62,7 +62,7 @@ class ConvWinoF63Layer : public ConvLayer
 
 		for(int u=1;u<=num;u++)	for(int v=1;v<=num;v++)
 		{
-		    for(enableOffKernel=0;enableOffKernel<=1;enableOffKernel++)
+		    for(enableOffKernel=1;enableOffKernel>=0;enableOffKernel--)
 		    {
 			ocBlock = u*oc_step*ocRegBlock;
 		        tileBlock = v*tl_step*tileRegBlock;
@@ -71,34 +71,13 @@ class ConvWinoF63Layer : public ConvLayer
 			if(tileBlock>tileN)		tileBlock = tileN;
 			if(ocBlock%ocRegBlock)		continue;
 			if(tileBlock%tileRegBlock)	continue;
-/*				
-		}
-	}	
 
-
-	for(ocRegBlock=3;ocRegBlock<=7;ocRegBlock++)
-	{
-//	    if(output_channels%ocRegBlock)	continue;
-//	    printf("ocRegBlock=%d\n", ocRegBlock);
-	    for(int ko=1;ko<(output_channels+ocRegBlock-1)/ocRegBlock;ko++)
-	    {
-	    ocBlock = ko*ocRegBlock;
-//	    printf("ocBlock=%d\n", ocBlock);
-    	    for(tileRegBlock=1;tileRegBlock<=4;tileRegBlock++)
-	    {
-		int unit = (tileN+tileRegBlock-1)/tileRegBlock/128;
-//		printf("tileRegBlock=%d\n", tileRegBlock);
-		for(int kt=1; kt<tileN/tileRegBlock; kt++)
-		{
-			tileBlock = kt*tileRegBlock;
-			if(tileBlock>tileN)	break;
-*/
 //			printf("ocb=%d tb=%d ocr%d tbr%d\n", ocBlock, tileBlock, ocRegBlock, tileRegBlock);
 			memcpy(kernel_temp, kernel_data, input_channels * output_channels * kernel_width * kernel_height  * sizeof(float));
 			inputBuf = (float *) malloc(icBlock*tileBlock*64*sizeof(float)); 
     			gemmBuf  = (float *) malloc((ocRegBlock*tileRegBlock*36 + ocBlock*tileBlock*64)*sizeof(float));
     			if(enableOffKernel)	
-	    			kernelBuf = (float *) malloc(input_channels * ((output_channels-1)/ocRegBlock*ocRegBlock+ocRegBlock) * 64 * sizeof(float));  	
+	    			kernelBuf = (float *) malloc(input_channels * (output_channels+7) * 64 * sizeof(float));  	
     			else	       	
             			kernelBuf = (float *) malloc(icBlock * ocBlock * 64 * sizeof(float));
 
@@ -106,8 +85,8 @@ class ConvWinoF63Layer : public ConvLayer
     			if(enableOffKernel)
     	    			offlineKernelTransform(kernelBuf, kernel_temp, output_channels, input_channels, ocBlock, ocRegBlock);
 
-/*    			printf("kernelBuf %d KB\n", icBlock*ocBlock*64*4/1024);   
-    			printf("gemmBuf %d KB\n",   (ocRegBlock*tileRegBlock*36 + ocBlock*tileBlock*64)*4/1024);   
+//    			printf("kernelBuf %d KB\n", icBlock*ocBlock*64*4/1024);   
+/*    			printf("gemmBuf %d KB\n",   (ocRegBlock*tileRegBlock*36 + ocBlock*tileBlock*64)*4/1024);   
     			printf("inputBuf %d KB\n", tileBlock*icBlock*64*4/1024);  
     			printf("L1 Cache used %d KB\n", (tileBlock*ocBlock*48 + icBlock*ocBlock*64 + tileBlock*icBlock*64)*4/1024);
 */
@@ -129,6 +108,7 @@ class ConvWinoF63Layer : public ConvLayer
 				tileBlock_best = tileBlock;
 				ocRegBlock_best = ocRegBlock;
 				tileRegBlock_best = tileRegBlock;
+				enableOffKernel_best = enableOffKernel;
 				minTimeusage = elapsedTime;
 			}
 			free(inputBuf);
@@ -143,7 +123,7 @@ class ConvWinoF63Layer : public ConvLayer
 	free(kernel_temp);
 	kernel_temp = NULL;
 
-	printf("Best Config: (%d %d %d) ocb=%d tb=%d ocr%d tbr%d, time=%.3f\n", input_channels, output_channels, input_width, ocBlock_best, tileBlock_best, ocRegBlock_best, tileRegBlock_best, minTimeusage);
+	printf("Best Config: (%d %d %d) ocb=%d tb=%d ocr%d tbr%d, eoffK%d time=%.3f\n", input_channels, output_channels, input_width, ocBlock_best, tileBlock_best, ocRegBlock_best, tileRegBlock_best, enableOffKernel_best, minTimeusage);
         return -1;
     }
 
@@ -200,5 +180,6 @@ class ConvWinoF63Layer : public ConvLayer
 	int tileBlock_best;
 	int ocRegBlock_best;
 	int tileRegBlock_best;
+	int enableOffKernel_best;
 };
 
