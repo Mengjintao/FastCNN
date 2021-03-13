@@ -50,7 +50,7 @@ class ConvWinoF63Layer : public ConvLayer
 	int InnerK_tl[7]={7,6,5,4,4,3,3};	
 
 	double minTimeusage=1e100;
-	int max_tuning_num=4000;
+	int max_tuning_num =28672;
 	int num = (int) sqrt(max_tuning_num/7.0);
 	for(int ik=0;ik<7;ik++)
 	{
