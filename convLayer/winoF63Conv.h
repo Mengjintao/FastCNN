@@ -137,6 +137,7 @@ class ConvWinoF63Layer : public ConvLayer
 	ocBlock   = ocBlock_best;
 	tileRegBlock = tileRegBlock_best;
 	ocRegBlock = ocRegBlock_best;
+	enableOffKernel = enableOffKernel_best;
 	num_threads = 1;
     	
 	inputBuf      = (float *) malloc(icBlock*tileBlock*64*sizeof(float)); 
