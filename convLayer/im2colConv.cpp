@@ -52,11 +52,11 @@ void ConvIm2colLayer::select_tuning_range_for_prefetch(int &pre_a_begin, int &pr
                                                        int &pre_c_begin, int &pre_c_end, int &pre_c_step) {
     pre_a_begin = 256;
     pre_a_step  = 256;
-    pre_a_end   = 512;
+    pre_a_end   = 512 - 1;
 
     pre_b_begin = 256;
     pre_b_step  = 256;
-    pre_b_end   = 512;
+    pre_b_end   = 512 - 1;
 
     pre_c_begin = 0;
     pre_c_step  = 256;
@@ -170,12 +170,10 @@ void ConvIm2colLayer::search_best_param(int &best_mc, int &best_nc, int &best_kc
                                         this->prefetch_c = pre_c;
                                         
                                         this->Init();
-                            
                                         timer.startBench();
                                         for (int i = 0; i < n_loop; i++) 
                                             this->Forward();
                                         elapsed_time = timer.endBench(n_loop);
-
                                         if (elapsed_time < best_time) {
                                             best_time = elapsed_time;
                                             printf("update best time: %fms\n", best_time);
@@ -415,12 +413,11 @@ void ConvIm2colLayer::GEMM_v2(float* A, float* B, float* C) {
 
     // float *packA = new float[M * kc]; 
     // float *packB = new float[packBC_height * packBC_width];
-    float *packA = static_cast<float*>(_mm_malloc(M * kc * sizeof(float))); 
-    float *packB = static_cast<float*>(_mm_malloc(packBC_height * packBC_width * sizeof(float)));
+    float *packA = static_cast<float*>(_mm_malloc((M * kc + 16) * sizeof(float))); 
+    float *packB = static_cast<float*>(_mm_malloc((packBC_height * packBC_width + 16) * sizeof(float)));
     float *packC = C;
     if (this->pack_c_version != 0)
         packC = packB + packB_height * packB_width;
-
     // A中的一大整列M * kc，B中的一大整行kc * N
     for (int kt = 0; kt < K; kt += kc)
     {
@@ -434,7 +431,6 @@ void ConvIm2colLayer::GEMM_v2(float* A, float* B, float* C) {
         {
             int nc_adjust = min(nc, N - nt);
             int nc_ceil = align_ceil(nc_adjust, col_batch);
-
             float *packB_copy = packB;
 
 	    // packB_timer.startBench();
@@ -543,8 +539,8 @@ void ConvIm2colLayer::GEMM_multithread(float* A, float* B, float* C) {
     packB_height = kc;
     packB_width = packBC_width;
 
-    float *packA = new float[M * kc];
-    float *packB = new float[packBC_height * packBC_width];
+    float *packA = new float[M * kc + 16 * num_threads];
+    float *packB = new float[packBC_height * packBC_width + 16 * num_threads];
     // float *packA = _mm_malloc(M * kc * sizeof(float)); 
     // float *packB = _mm_malloc(packBC_height * packBC_width * sizeof(float));
     float *packC = packB + packB_height * packB_width;

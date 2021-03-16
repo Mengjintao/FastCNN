@@ -22,8 +22,8 @@ public:
         this->N = output_height * output_width;
         this->K = input_channels * kernel_height * kernel_width;
 	this->num_threads = num_threads;
-
-        transform_input_data = static_cast<float*>(malloc(sizeof(float) * output_height * output_width * input_channels * kernel_height * kernel_width));
+        this->transform_input_data = static_cast<float*>(malloc(sizeof(float) * output_height * output_width * input_channels * kernel_height * kernel_width));
+        this->output_data = static_cast<float*>(realloc(this->output_data ,sizeof(float) * (output_height * output_width * output_channels + 128))); 
         if (this->num_threads > 1) {
             this->gemm_version = GEMM_BLOCKS_MULTI_THREADS;
 	} else {
@@ -32,6 +32,11 @@ public:
             else
             	this->gemm_version = GEMM_BLOCKS_SINGLE_THREAD;
 	}
+    }
+
+    ~ConvIm2colLayer() {
+        free(this->transform_input_data);
+        ConvLayer::~ConvLayer();
     }
         
     int Init();

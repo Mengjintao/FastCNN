@@ -117,6 +117,8 @@ int get_cache_info(size_t &l1_cache_size_per_core, size_t &l2_cache_size_per_cor
                 char type[20];
                 char shared_cpu_list[20];
                 FILE *fp;
+                cache_info.level = 0;
+                cache_info.size  = 0;
                 while ((child_entry = readdir(child_directory_ptr)) != nullptr) {   // traverse all param of a cache level
                     if (!(child_entry->d_type & DT_DIR)) {
                         if (strcmp(child_entry->d_name, "level") == 0) {    // level
@@ -160,9 +162,13 @@ int get_cache_info(size_t &l1_cache_size_per_core, size_t &l2_cache_size_per_cor
                 }
                 if (strcmp(type, "Instruction") != 0) {
                     if (cache_info.level == 1) {
+                        if (cache_info.size == 0)
+                            cache_info.size = 32;
                         l1_cache_size = cache_info.size * 1024;
                         l1_cache_size_per_core = l1_cache_size / (size_t)cache_info.num_shared_core;
                     } else if (cache_info.level == 2) {
+                        if (cache_info.size == 0)
+                            cache_info.size = 512;
                         l2_cache_size = cache_info.size * 1024;
                         l2_cache_size_per_core = l2_cache_size / (size_t)cache_info.num_shared_core;
                     }

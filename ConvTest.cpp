@@ -133,10 +133,10 @@ int main(int argc, char* argv[]){
     fillTestInput(testInput, inputChannels, inputDim);
     fillTestKernel(testKernel, inputChannels, outputChannels, kernelDim);
 
-//    ConvNaiveLayer conv(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels, kernelDim.height, kernelDim.width, stride_height, stride_width, paddings.left, paddings.right, paddings.top, paddings.bottom);
-//    timer.startBench();
-//    conv.Forward();
-//    timer.endBench("ConvNaiveLayer wall clock: ");
+    ConvNaiveLayer conv(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels, kernelDim.height, kernelDim.width, stride_height, stride_width, paddings.left, paddings.right, paddings.top, paddings.bottom);
+    timer.startBench();
+    conv.Forward();
+    timer.endBench("ConvNaiveLayer wall clock: ");
 
 //    ConvNaiveNEONLayer convNEON(testInput, testKernel, NULL, inputChannels, inputDim.height, inputDim.width, outputChannels);
 //    timer.startBench();
