@@ -36,7 +36,6 @@ public:
 
     ~ConvIm2colLayer() {
         free(this->transform_input_data);
-        ConvLayer::~ConvLayer();
     }
         
     int Init();
