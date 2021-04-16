@@ -66,7 +66,8 @@ class ConvLayer
 	    if(biasw)
 	    	memcpy(bias_data, biasw, output_channels * output_width * output_height * sizeof(float));
 
-   	    output_data = (float *) malloc(output_channels * output_width * output_height * sizeof(float)); 
+   	    output_data = (float *) malloc(output_channels * output_width * output_height * sizeof(float));
+        //output_data should assert 
         }
 
 	~ConvLayer()

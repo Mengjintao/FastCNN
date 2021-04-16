@@ -24,9 +24,9 @@ class ConvNaiveLayer : public ConvLayer
         int output_page   = output_height * output_width;
 
         float *baseResult = output_data; 
-	float *testInput  = input_data;
+	    float *testInput  = input_data;
         float *testKernel = kernel_data;
-	float *testBias   = bias_data;
+	    float *testBias   = bias_data;
         	
         for(int oc=0; oc<output_channels; oc++)
         {
@@ -44,11 +44,11 @@ class ConvNaiveLayer : public ConvLayer
                     float total = 0;
                     for(int i=0; i<3; i++)	for(int j=0; j<3; j++)
                     {
-			int x = startH+i - padding_top;
-			int y = startW+j - padding_left;
-			float value = 0;
-			if(x>=0 && x<input_height && y>=0 && y<input_width)	value = *(ip + x*input_width + y);
-			else value = 0;	
+            			int x = startH+i - padding_top;
+			            int y = startW+j - padding_left;
+			            float value = 0;
+                        if(x>=0 && x<input_height && y>=0 && y<input_width)	value = *(ip + x*input_width + y);
+                        else value = 0;	
                         float *tkp = kp + i*3 + j;
                         total += value * (*tkp);
                     }
