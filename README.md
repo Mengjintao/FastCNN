@@ -44,10 +44,10 @@ make
 ./run_vgg16.sh -a winograd -tn tuning -i 10
 # Algorithm is Im2col, tuning, No. iterations is 10
 ./run_vgg16.sh -a im2col -tn tuning -i 10
-# Algorithm is automatically selected, no tuning, use default parameters, No. iterations is 10
 ```
 ##### Layer-wise Evaluation on ResNet-50:
 ```bash
+# Algorithm is automatically selected, no tuning, use default parameters, No. iterations is 10
 ./run_resnet50.sh -a auto -tn no_tuning -i 10
 # Algorithm is winograd, no tuning, use default parameters, No. iterations is 10
 ./run_resnet50.sh -a winograd -tn no_tuning -i 10
