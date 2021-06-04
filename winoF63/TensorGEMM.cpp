@@ -252,6 +252,152 @@ void TensorGEMMInnerKernel4x4x4(float* WTp, const float* UTp, float* vp, int inC
     vst1q_f32(wp + 60, vc33);
 }
 
+void TensorGEMMInnerKernel2x4x4(float* WTp, const float* UTp, float* vp, int inChannels, int wStride)
+{
+    float32x4_t vc00, vc01, vc02, vc03;
+    float32x4_t vc10, vc11, vc12, vc13;
+    float32x4_t vc20, vc21, vc22, vc23;
+    float32x4_t vc30, vc31, vc32, vc33;
+    float32x4_t u0, u1, u2, u3;
+    float32x4_t v0, v1, v2, v3;
+    vc00 = vdupq_n_f32(0.f);
+    vc01 = vdupq_n_f32(0.f);
+    vc02 = vdupq_n_f32(0.f);
+    vc03 = vdupq_n_f32(0.f);
+    vc10 = vdupq_n_f32(0.f);
+    vc11 = vdupq_n_f32(0.f);
+    vc12 = vdupq_n_f32(0.f);
+    vc13 = vdupq_n_f32(0.f);
+    vc20 = vdupq_n_f32(0.f);
+    vc21 = vdupq_n_f32(0.f);
+    vc22 = vdupq_n_f32(0.f);
+    vc23 = vdupq_n_f32(0.f);
+    vc30 = vdupq_n_f32(0.f);
+    vc31 = vdupq_n_f32(0.f);
+    vc32 = vdupq_n_f32(0.f);
+    vc33 = vdupq_n_f32(0.f);
+    const float *up = UTp;
+    for (int ic = 0; ic < inChannels; ++ic)
+    {
+        u0 = vld1q_f32(up);
+        u1 = vld1q_f32(up + 4);
+        up += 8;
+        v0 = vld1q_f32(vp);
+        v1 = vld1q_f32(vp + 4);
+        v2 = vld1q_f32(vp + 8);
+        v3 = vld1q_f32(vp + 12);
+        vp += wStride;
+        vc00 = vfmaq_f32(vc00, u0, v0);
+        vc01 = vfmaq_f32(vc01, u0, v1);
+        vc02 = vfmaq_f32(vc02, u0, v2);
+        vc03 = vfmaq_f32(vc03, u0, v3);
+
+	vc10 = vfmaq_f32(vc10, u1, v0);
+        vc11 = vfmaq_f32(vc11, u1, v1);
+        vc12 = vfmaq_f32(vc12, u1, v2);
+        vc13 = vfmaq_f32(vc13, u1, v3);
+
+        // vc20 = vfmaq_f32(vc20, u2, v0);
+        // vc21 = vfmaq_f32(vc21, u2, v1);
+        // vc22 = vfmaq_f32(vc22, u2, v2);
+        // vc23 = vfmaq_f32(vc23, u2, v3);
+
+        // vc30 = vfmaq_f32(vc30, u3, v0);
+        // vc31 = vfmaq_f32(vc31, u3, v1);
+        // vc32 = vfmaq_f32(vc32, u3, v2);
+        // vc33 = vfmaq_f32(vc33, u3, v3);
+    }
+    float *wp = WTp;
+    vst1q_f32(wp,      vc00);
+    vst1q_f32(wp + 4,  vc01);
+    vst1q_f32(wp + 8,  vc02);
+    vst1q_f32(wp + 12, vc03);
+    vst1q_f32(wp + 16, vc10);
+    vst1q_f32(wp + 20, vc11);
+    vst1q_f32(wp + 24, vc12);
+    vst1q_f32(wp + 28, vc13);
+    // vst1q_f32(wp + 32, vc20);
+    // vst1q_f32(wp + 36, vc21);
+    // vst1q_f32(wp + 40, vc22);
+    // vst1q_f32(wp + 44, vc23);
+    // vst1q_f32(wp + 48, vc30);
+    // vst1q_f32(wp + 52, vc31);
+    // vst1q_f32(wp + 56, vc32);
+    // vst1q_f32(wp + 60, vc33);
+}
+
+void TensorGEMMInnerKernel1x4x4(float* WTp, const float* UTp, float* vp, int inChannels, int wStride)
+{
+    float32x4_t vc00, vc01, vc02, vc03;
+    float32x4_t vc10, vc11, vc12, vc13;
+    float32x4_t vc20, vc21, vc22, vc23;
+    float32x4_t vc30, vc31, vc32, vc33;
+    float32x4_t u0, u1, u2, u3;
+    float32x4_t v0, v1, v2, v3;
+    vc00 = vdupq_n_f32(0.f);
+    vc01 = vdupq_n_f32(0.f);
+    vc02 = vdupq_n_f32(0.f);
+    vc03 = vdupq_n_f32(0.f);
+    vc10 = vdupq_n_f32(0.f);
+    vc11 = vdupq_n_f32(0.f);
+    vc12 = vdupq_n_f32(0.f);
+    vc13 = vdupq_n_f32(0.f);
+    vc20 = vdupq_n_f32(0.f);
+    vc21 = vdupq_n_f32(0.f);
+    vc22 = vdupq_n_f32(0.f);
+    vc23 = vdupq_n_f32(0.f);
+    vc30 = vdupq_n_f32(0.f);
+    vc31 = vdupq_n_f32(0.f);
+    vc32 = vdupq_n_f32(0.f);
+    vc33 = vdupq_n_f32(0.f);
+    const float *up = UTp;
+    for (int ic = 0; ic < inChannels; ++ic)
+    {
+        u0 = vld1q_f32(up);
+        up += 4;
+        v0 = vld1q_f32(vp);
+        v1 = vld1q_f32(vp + 4);
+        v2 = vld1q_f32(vp + 8);
+        v3 = vld1q_f32(vp + 12);
+        vp += wStride;
+        vc00 = vfmaq_f32(vc00, u0, v0);
+        vc01 = vfmaq_f32(vc01, u0, v1);
+        vc02 = vfmaq_f32(vc02, u0, v2);
+        vc03 = vfmaq_f32(vc03, u0, v3);
+
+	// vc10 = vfmaq_f32(vc10, u1, v0);
+    //     vc11 = vfmaq_f32(vc11, u1, v1);
+    //     vc12 = vfmaq_f32(vc12, u1, v2);
+    //     vc13 = vfmaq_f32(vc13, u1, v3);
+
+    //     vc20 = vfmaq_f32(vc20, u2, v0);
+    //     vc21 = vfmaq_f32(vc21, u2, v1);
+    //     vc22 = vfmaq_f32(vc22, u2, v2);
+    //     vc23 = vfmaq_f32(vc23, u2, v3);
+
+    //     vc30 = vfmaq_f32(vc30, u3, v0);
+    //     vc31 = vfmaq_f32(vc31, u3, v1);
+    //     vc32 = vfmaq_f32(vc32, u3, v2);
+    //     vc33 = vfmaq_f32(vc33, u3, v3);
+    }
+    float *wp = WTp;
+    vst1q_f32(wp,      vc00);
+    vst1q_f32(wp + 4,  vc01);
+    vst1q_f32(wp + 8,  vc02);
+    vst1q_f32(wp + 12, vc03);
+    // vst1q_f32(wp + 16, vc10);
+    // vst1q_f32(wp + 20, vc11);
+    // vst1q_f32(wp + 24, vc12);
+    // vst1q_f32(wp + 28, vc13);
+    // vst1q_f32(wp + 32, vc20);
+    // vst1q_f32(wp + 36, vc21);
+    // vst1q_f32(wp + 40, vc22);
+    // vst1q_f32(wp + 44, vc23);
+    // vst1q_f32(wp + 48, vc30);
+    // vst1q_f32(wp + 52, vc31);
+    // vst1q_f32(wp + 56, vc32);
+    // vst1q_f32(wp + 60, vc33);
+}
 
 void TensorGEMMInnerKernel4x5x4(float* WTp, const float* UTp, float* vp, int inChannels, int wStride)
 {
@@ -352,6 +498,143 @@ void TensorGEMMInnerKernel4x5x4(float* WTp, const float* UTp, float* vp, int inC
     vst1q_f32(wp + 68, vc32);
     vst1q_f32(wp + 72, vc33);
     vst1q_f32(wp + 76, vc34);
+}
+
+void TensorGEMMInnerKernel1x5x4(float* WTp, const float* UTp, float* vp, int inChannels, int wStride)
+{
+    float32x4_t vc00, vc01, vc02, vc03, vc04;
+    float32x4_t vc10, vc11, vc12, vc13, vc14;
+    float32x4_t vc20, vc21, vc22, vc23, vc24;
+    float32x4_t vc30, vc31, vc32, vc33, vc34;
+    float32x4_t u0, u1, u2, u3;
+    float32x4_t v0, v1, v2, v3, v4;
+    vc00 = vdupq_n_f32(0.f);
+    vc01 = vdupq_n_f32(0.f);
+    vc02 = vdupq_n_f32(0.f);
+    vc03 = vdupq_n_f32(0.f);
+    vc04 = vdupq_n_f32(0.f);
+
+    vc10 = vdupq_n_f32(0.f);
+    vc11 = vdupq_n_f32(0.f);
+    vc12 = vdupq_n_f32(0.f);
+    vc13 = vdupq_n_f32(0.f);
+    vc14 = vdupq_n_f32(0.f);
+
+    vc20 = vdupq_n_f32(0.f);
+    vc21 = vdupq_n_f32(0.f);
+    vc22 = vdupq_n_f32(0.f);
+    vc23 = vdupq_n_f32(0.f);
+    vc24 = vdupq_n_f32(0.f);
+
+    vc30 = vdupq_n_f32(0.f);
+    vc31 = vdupq_n_f32(0.f);
+    vc32 = vdupq_n_f32(0.f);
+    vc33 = vdupq_n_f32(0.f);
+    vc34 = vdupq_n_f32(0.f);
+
+    const float *up = UTp;
+    for (int ic = 0; ic < inChannels; ++ic)
+    {
+        //if(oc == 0){
+        //print_floats(vp, 16);
+        //print_floats(up, 16);
+        //}
+        u0 = vld1q_f32(up);
+        up += 4;
+        v0 = vld1q_f32(vp);
+        v1 = vld1q_f32(vp + 4);
+        v2 = vld1q_f32(vp + 8);
+        v3 = vld1q_f32(vp + 12);
+        v4 = vld1q_f32(vp + 16);
+        vp += wStride;
+
+        vc00 = vfmaq_f32(vc00, u0, v0);
+        vc01 = vfmaq_f32(vc01, u0, v1);
+        vc02 = vfmaq_f32(vc02, u0, v2);
+        vc03 = vfmaq_f32(vc03, u0, v3);
+        vc04 = vfmaq_f32(vc04, u0, v4);
+    }
+    float *wp = WTp;
+    vst1q_f32(wp,      vc00);
+    vst1q_f32(wp + 4,  vc01);
+    vst1q_f32(wp + 8,  vc02);
+    vst1q_f32(wp + 12, vc03);
+    vst1q_f32(wp + 16, vc04);
+}
+
+void TensorGEMMInnerKernel2x5x4(float* WTp, const float* UTp, float* vp, int inChannels, int wStride)
+{
+    float32x4_t vc00, vc01, vc02, vc03, vc04;
+    float32x4_t vc10, vc11, vc12, vc13, vc14;
+    float32x4_t vc20, vc21, vc22, vc23, vc24;
+    float32x4_t vc30, vc31, vc32, vc33, vc34;
+    float32x4_t u0, u1, u2, u3;
+    float32x4_t v0, v1, v2, v3, v4;
+    vc00 = vdupq_n_f32(0.f);
+    vc01 = vdupq_n_f32(0.f);
+    vc02 = vdupq_n_f32(0.f);
+    vc03 = vdupq_n_f32(0.f);
+    vc04 = vdupq_n_f32(0.f);
+
+    vc10 = vdupq_n_f32(0.f);
+    vc11 = vdupq_n_f32(0.f);
+    vc12 = vdupq_n_f32(0.f);
+    vc13 = vdupq_n_f32(0.f);
+    vc14 = vdupq_n_f32(0.f);
+
+    vc20 = vdupq_n_f32(0.f);
+    vc21 = vdupq_n_f32(0.f);
+    vc22 = vdupq_n_f32(0.f);
+    vc23 = vdupq_n_f32(0.f);
+    vc24 = vdupq_n_f32(0.f);
+
+    vc30 = vdupq_n_f32(0.f);
+    vc31 = vdupq_n_f32(0.f);
+    vc32 = vdupq_n_f32(0.f);
+    vc33 = vdupq_n_f32(0.f);
+    vc34 = vdupq_n_f32(0.f);
+
+    const float *up = UTp;
+    for (int ic = 0; ic < inChannels; ++ic)
+    {
+        //if(oc == 0){
+        //print_floats(vp, 16);
+        //print_floats(up, 16);
+        //}
+        u0 = vld1q_f32(up);
+        u1 = vld1q_f32(up + 4);
+        up += 8;
+        v0 = vld1q_f32(vp);
+        v1 = vld1q_f32(vp + 4);
+        v2 = vld1q_f32(vp + 8);
+        v3 = vld1q_f32(vp + 12);
+        v4 = vld1q_f32(vp + 16);
+        vp += wStride;
+
+        vc00 = vfmaq_f32(vc00, u0, v0);
+        vc01 = vfmaq_f32(vc01, u0, v1);
+        vc02 = vfmaq_f32(vc02, u0, v2);
+        vc03 = vfmaq_f32(vc03, u0, v3);
+        vc04 = vfmaq_f32(vc04, u0, v4);
+
+        vc10 = vfmaq_f32(vc10, u1, v0);
+        vc11 = vfmaq_f32(vc11, u1, v1);
+        vc12 = vfmaq_f32(vc12, u1, v2);
+        vc13 = vfmaq_f32(vc13, u1, v3);
+        vc14 = vfmaq_f32(vc14, u1, v4);
+    }
+    float *wp = WTp;
+    vst1q_f32(wp,      vc00);
+    vst1q_f32(wp + 4,  vc01);
+    vst1q_f32(wp + 8,  vc02);
+    vst1q_f32(wp + 12, vc03);
+    vst1q_f32(wp + 16, vc04);
+
+    vst1q_f32(wp + 20, vc10);
+    vst1q_f32(wp + 24, vc11);
+    vst1q_f32(wp + 28, vc12);
+    vst1q_f32(wp + 32, vc13);
+    vst1q_f32(wp + 36, vc14);
 }
 
 

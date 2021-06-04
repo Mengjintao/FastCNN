@@ -1,4 +1,5 @@
 #include "../utility/helper.h"
+#include "./winoF63/winoF63.h"
 
 class ConvWinoF63Layer : public ConvLayer
 {
@@ -9,7 +10,7 @@ class ConvWinoF63Layer : public ConvLayer
 	inputBuf  = NULL;
 	gemmBuf   = NULL;
 	kernelBuf = NULL;
-	ocBlock_best     = 16;
+	ocBlock_best     =256;
 	tileBlock_best   = 16;
 	ocRegBlock_best  = 4;
 	tileRegBlock_best= 4;
@@ -36,9 +37,9 @@ class ConvWinoF63Layer : public ConvLayer
 	enableOffKernel = 1;
 
 
-	tileBlock    = 20;
+	tileBlock    = 4;
 	tileRegBlock = 4;
-	ocBlock      = 20;
+	ocBlock      = 4;
 	ocRegBlock   = 4;
 
     	int tileH = (output_height + 5)/6;
@@ -46,33 +47,44 @@ class ConvWinoF63Layer : public ConvLayer
     	int tileN = tileH*tileW;
 	float *kernel_temp = (float *) malloc(input_channels * (output_channels+7) * kernel_width * kernel_height  * sizeof(float));
 
-	int InnerK_oc[7]={3,3,4,4,5,6,7};	
-	int InnerK_tl[7]={7,6,5,4,4,3,3};	
+	int InnerK_oc[6]={3,4,5,6,7,4};	
+	int InnerK_tl[6]={7,5,4,3,3,4};	
 
 	double minTimeusage=1e100;
-	int max_tuning_num =28672;
-	int num = (int) sqrt(max_tuning_num/7.0);
-	for(int ik=0;ik<7;ik++)
+
+	int max_tuning_num =1024;	//
+	int oc_num = (output_channels-1)/ ocRegBlock + 1;
+	int tl_num = (tileN -1) / tileRegBlock + 1;
+	if(oc_num*tl_num>max_tuning_num)	{
+		//OC will be divided at most 64 parts.
+		if(oc_num>=64)	          oc_num = 64;	
+		//All the others will be used on tile
+		if(tl_num>max_tuning_num/oc_num)  tl_num = max_tuning_num/oc_num; 
+	}
+
+	int ik=3;
+	for(int ik=0;ik<6;ik++)
 	{
 		ocRegBlock=InnerK_oc[ik];
 		tileRegBlock=InnerK_tl[ik];
 
-		int oc_step = (output_channels-1) / (ocRegBlock  *num) + 1;
-		int tl_step =          (tileN -1) / (tileRegBlock*num) + 1;
+		int oc_step = (output_channels-1) / (ocRegBlock  *oc_num) + 1;
+		int tl_step =          (tileN -1) / (tileRegBlock*tl_num) + 1;
 
-		for(int u=1;u<=num;u++)	for(int v=1;v<=num;v++)
+		for(int u=1;u<=oc_num;u++)	for(int v=1;v<=tl_num;v++)
 		{
-		    for(enableOffKernel=1;enableOffKernel>=0;enableOffKernel--)
-		    {
-			ocBlock = u*oc_step*ocRegBlock;
-		        tileBlock = v*tl_step*tileRegBlock;
-			
-			if(ocBlock>output_channels)	ocBlock = output_channels;
-			if(tileBlock>tileN)		tileBlock = tileN;
-			if(ocBlock%ocRegBlock)		continue;
-			if(tileBlock%tileRegBlock)	continue;
+		    enableOffKernel=1;
+		    ocBlock = u*oc_step*ocRegBlock;
+		    tileBlock = v*tl_step*tileRegBlock;
 
-//			printf("ocb=%d tb=%d ocr%d tbr%d\n", ocBlock, tileBlock, ocRegBlock, tileRegBlock);
+		    if(ocBlock>output_channels)	ocBlock = output_channels;
+		    if(tileBlock>tileN)		tileBlock = tileN;
+		    if(ocBlock%ocRegBlock)		continue;
+		    if(tileBlock%tileRegBlock)	continue;
+//		    printf("ocb=%d tb=%d ocr%d tbr%d\n", ocBlock, tileBlock, ocRegBlock, tileRegBlock);
+
+		    for(enableOffKernel=3;enableOffKernel>=0;enableOffKernel--)
+		    {
 			memcpy(kernel_temp, kernel_data, input_channels * output_channels * kernel_width * kernel_height  * sizeof(float));
 			inputBuf = (float *) malloc(icBlock*tileBlock*64*sizeof(float)); 
     			gemmBuf  = (float *) malloc((ocRegBlock*tileRegBlock*36 + ocBlock*tileBlock*64)*sizeof(float));
@@ -90,6 +102,7 @@ class ConvWinoF63Layer : public ConvLayer
     			printf("inputBuf %d KB\n", tileBlock*icBlock*64*4/1024);  
     			printf("L1 Cache used %d KB\n", (tileBlock*ocBlock*48 + icBlock*ocBlock*64 + tileBlock*icBlock*64)*4/1024);
 */
+			Timer inputTran, kernelTran, GEMM, outputTran;
 			for(int i=0;i<warmup;i++)
        			    winoF63(output_data, input_data, kernel_temp, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads);
 
@@ -130,16 +143,19 @@ class ConvWinoF63Layer : public ConvLayer
 
     int Init()
     {
-    	icBlock = input_channels;
-	enableOffKernel = 1;
+
+		icBlock = input_channels;
+		enableOffKernel = 1;
 
 	tileBlock = tileBlock_best;
 	ocBlock   = ocBlock_best;
 	tileRegBlock = tileRegBlock_best;
 	ocRegBlock = ocRegBlock_best;
-	enableOffKernel = enableOffKernel_best;
+	// enableOffKernel = enableOffKernel_best;
+	printf("enableoffkernel = %d\n", enableOffKernel);
 	num_threads = 1;
     	
+	printf("Testing ic=%d oc=%d width=%d tileBlock=%d ocBlock=%d icBlock=%d threads=%d\n", input_channels, output_channels, input_width, tileBlock, ocBlock, icBlock, num_threads);
 	inputBuf      = (float *) malloc(icBlock*tileBlock*64*sizeof(float)); 
     	gemmBuf       = (float *) malloc((ocRegBlock*tileRegBlock*36 + ocBlock*tileBlock*64)*sizeof(float));
     	if(enableOffKernel)	
@@ -154,14 +170,19 @@ class ConvWinoF63Layer : public ConvLayer
     	printf("gemmBuf   %d KB\n",   (ocRegBlock*tileRegBlock*36 + ocBlock*tileBlock*64)*4/1024);   
     	printf("inputBuf  %d KB\n", tileBlock*icBlock*64*4/1024);  
     	printf("L1 Cache used %d KB\n", (tileBlock*ocBlock*48 + icBlock*ocBlock*64 + tileBlock*icBlock*64)*4/1024);
+	
 	return -1;
     }
 
-
     int Forward()
     {
-       	winoF63(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads);
+	for(int i=0;i<1;i++)
+		winoF63(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel+4, num_threads);
 
+    	// printf("kernelBuf %d KB\n", icBlock*ocBlock*64*4/1024);   
+    	// printf("gemmBuf   %d KB\n",   (ocRegBlock*tileRegBlock*36 + ocBlock*tileBlock*64)*4/1024);   
+    	// printf("inputBuf  %d KB\n", tileBlock*icBlock*64*4/1024);  
+    	// printf("L1 Cache used %d KB\n", (tileBlock*ocBlock*48 + icBlock*ocBlock*64 + tileBlock*icBlock*64)*4/1024);
         return 1;
     }
     private:

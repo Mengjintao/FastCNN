@@ -6,6 +6,7 @@
 #include <time.h>
 #include "../utility/helper.h"
 #include "TensorGEMM.h"
+#include "../utility/common.h"
 
 void printTensor(const float* matrix, int row, int col)
 {
@@ -971,25 +972,24 @@ void offlineKernelTransform(float *offlineKernel, float* testKernel, int outputC
     }
 }
 
-int winoF63(float *baseResult, float *testInput, const float *testKernel, int inputChannels, int outputChannels, int inputHeight, int inputWidth, int padWidth, int padHeight, int strideWidth, int strideHeight, int tileBlock, float *buf, int ocBlock, float *kernelBuf, int icBlock, float *inputBuf, int tileRegBlock, int ocRegBlock, bool enableOffKernel, int num_threads)
+int winoF63(float *baseResult, float *testInput, const float *testKernel, int inputChannels, int outputChannels, int inputHeight, int inputWidth, int padWidth, int padHeight, int strideWidth, int strideHeight, int tileBlock, float *buf, int ocBlock, float *kernelBuf, int icBlock, float *inputBuf, int tileRegBlock, int ocRegBlock, int scheduling, int num_threads)
 {
     /*
         outputBuf: tileBlock*ocBlock*48
         kernelBuf: icBlock*ocBlock*64
         inputBuf:  tileBlock*icBlock*64
     */
-    
+    int enableOffKernel = scheduling%2;
+    int loopOrdering    = scheduling/2;
     int outputHeight = inputHeight+ padHeight*2 -2;
     int outputWidth  = inputWidth + padWidth*2  -2;
     int tileH = (inputHeight+ padHeight*2 -2 + 5)/6;
     int tileW = (inputWidth + padWidth*2  -2 + 5)/6;
     int tileN = tileH*tileW;
 
-//    printf("%d %d\n", inputChannels, icBlock);
     assert(inputChannels%icBlock  == 0);
     assert(tileBlock%tileRegBlock == 0);
 
-//    assert(outputChannels%ocBlock == 0);
     assert(ocBlock%ocRegBlock     == 0);
 
     void (*tensorGEMM)(float *, const float *, float *, int, int);
@@ -1019,7 +1019,7 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
     else if (ocRegBlock == 5)
     {
         if (tileRegBlock == 5)
-	    assert(0);
+	        assert(0);
         if (tileRegBlock == 4)
             tensorGEMM = TensorGEMMInnerKernel5x4x4;
         else if (tileRegBlock == 3)
@@ -1131,17 +1131,6 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
     }
 
 
-/*
-    void (*tensorGEMM)(float *, const float *, float *, int, int);
-    if(tileRegBlock==4      && ocRegBlock==4)	tensorGEMM = TensorGEMMInnerKernel4x4x4;
-    else if(tileRegBlock==5 && ocRegBlock==4)	tensorGEMM = TensorGEMMInnerKernel4x5x4;
-
-    void (*funGEMM)(float *, const float *, float *, int, int);
-    if(tileN%tileRegBlock==4)		funGEMM = TensorGEMMInnerKernel4x4x4;
-    else if(tileN%tileRegBlock==3)	funGEMM = TensorGEMMInnerKernel4x3x4;
-    else if(tileN%tileRegBlock==2)	funGEMM = TensorGEMMInnerKernel4x2x4;
-    else if(tileN%tileRegBlock==1)	funGEMM = TensorGEMMInnerKernel4x1x4;
-*/
     Timer inputTran, kernelTran, GEMM, outputTran, storeBack;
 
     const float32x4_t f5    = vdupq_n_f32(5.0f);
@@ -1164,27 +1153,44 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
 //#pragma omp parallel for num_threads(num_threads) collapse(2) schedule(static)
 #endif
 #endif
+    int Boc = (outputChannels-1)/ocBlock+1;
+    int Btl = (tileN-1)/tileBlock+1;
 
-//    printTensor(kernel, 32, 16);
+    for(int Bi=0;Bi<Boc*Btl;Bi++)
+    {
+	
+	    int oc, tile;
+	    if(loopOrdering)
+   	    {
+	        oc   = Bi%Boc * ocBlock;
+	   	    tile = Bi/Boc * tileBlock; 
+	    }
+	    else
+	    {
+	   	    oc   = Bi/Btl * ocBlock; 
+	   	    tile = Bi%Btl * tileBlock;
+	    }
+
+/*	
     for(int oc=0; oc<outputChannels; oc+=ocBlock)
     {
         for(int tile=0; tile<tileN; tile+=tileBlock)
         {
-            int ocEnd    = oc+ocBlock<outputChannels?oc+ocBlock:outputChannels;
-            int ocStep   = ocEnd - oc;
-            int tileEnd  = tile+tileBlock<tileN ? tile+tileBlock : tileN;
-            int tileStep = tileEnd - tile;
+*/
+        int ocEnd    = oc+ocBlock<outputChannels?oc+ocBlock:outputChannels;
+        int ocStep   = ocEnd - oc;
+        int tileEnd  = tile+tileBlock<tileN ? tile+tileBlock : tileN;
+        int tileStep = tileEnd - tile;
 
 	    if(!enableOffKernel)
-            { 
+        { 
             kernelTran.startBench();
-	    int   lineWidth = 4*ocRegBlock*inputChannels;
+	        int lineWidth = 4*ocRegBlock*inputChannels;
 
-//            for(int kN=0; kN<ocBlock; kN+=ocRegBlock)
             for(int kN=0; kN<ocStep; kN+=ocRegBlock)
             {
-		int ocREnd = kN+ocRegBlock < ocStep? kN+ocRegBlock : ocStep;
-		int ocRStep = ocREnd - kN;
+		        int ocREnd = kN+ocRegBlock < ocStep? kN+ocRegBlock : ocStep;
+		        int ocRStep = ocREnd - kN;
                 //error is find here. there should be no oc inside the loops
                 const float *kernel= testKernel + (oc+kN)*inputChannels*9;
                 float *pk0   = kernelBuf  + kN*inputChannels*64;
@@ -1205,10 +1211,10 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
                 float *pk15  = pk14 + lineWidth;
 
                 for(int ic=0; ic<inputChannels; ic++)
-		{
-		    for(int kRN=0; kRN<ocRStep; kRN++)
+		        {
+		            for(int kRN=0; kRN<ocRStep; kRN++)
                     {
-                        //printTensor(kernel, 3, 3);
+                        // have some problems here.
                         l0 = vld1q_f32(kernel);
                         l1 = vld1q_f32(kernel+3);
                         l2 = vld1q_f32(kernel+6);
@@ -1253,8 +1259,8 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
                         vst1q_f32(pk15,  r7);
                         pk15 +=4;
                     }
-		    for(int kRN=ocRStep; kRN<ocRegBlock; kRN++)
-		    {
+		            for(int kRN=ocRStep; kRN<ocRegBlock; kRN++)
+		            {
                         vst1q_f32(pk0,   vZero);
                         pk0  +=4;
                         vst1q_f32(pk1,   vZero);
@@ -1287,132 +1293,130 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
                         pk14 +=4;
                         vst1q_f32(pk15,  vZero);
                         pk15 +=4;
-		    }
-		}
+		            }
+		        }
             }
             kernelTran.accumBench();
 	    }
 
-//            printf("kernelTran\n");
-            //printTensor(kernelBuf, 32, 16);
+        int lineWidth = 4 * tileRegBlock * inputChannels;
+        int stepSize = tileRegBlock*inputChannels*64 - tileRegBlock*4;
+        inputTran.startBench();
 
-            int lineWidth = 4 * tileRegBlock * inputChannels;
-            int stepSize = tileRegBlock*inputChannels*64 - tileRegBlock*4;
-            inputTran.startBench();
+        // input transformation is same as pack B in goto's paper.
+        for(int ic=0; ic<inputChannels; ic++)
+        {
+            int tileRow = (tile/tileW)*6 - padHeight;
+            int tileCol = (tile%tileW)*6 - padWidth;
+            int inPos   = tileRow*inputWidth + tileCol;
 
-            for(int ic=0; ic<inputChannels; ic++)
+            float *pIn0 = testInput + ic*inputHeight*inputWidth + inPos;
+            float *pIn1 = pIn0 + inputWidth;
+            float *pIn2 = pIn1 + inputWidth;
+            float *pIn3 = pIn2 + inputWidth;
+            float *pIn4 = pIn3 + inputWidth;
+            float *pIn5 = pIn4 + inputWidth;
+            float *pIn6 = pIn5 + inputWidth;
+            float *pIn7 = pIn6 + inputWidth;
+
+            //if(tileRow>=0 && tileRow+8 <= inputWidth && tileCol>=0 && tileCol+8 <= inputWidth)
+            if(tileRow>=0 && tileRow+8 <= inputHeight && tileCol>=0 && tileCol+8 <= inputWidth)
             {
-                int tileRow = (tile/tileW)*6 - padHeight;
-                int tileCol = (tile%tileW)*6 - padWidth;
-                int inPos   = tileRow*inputWidth + tileCol;
+                __builtin_prefetch(pIn0, 0, 1);
+                __builtin_prefetch(pIn1, 0, 1);
+                __builtin_prefetch(pIn2, 0, 1);
+                __builtin_prefetch(pIn3, 0, 1);
+                __builtin_prefetch(pIn4, 0, 1);
+                __builtin_prefetch(pIn5, 0, 1);
+                __builtin_prefetch(pIn6, 0, 1);
+                __builtin_prefetch(pIn7, 0, 1);
+            }
 
-                float *pIn0 = testInput + ic*inputHeight*inputWidth + inPos;
-                float *pIn1 = pIn0 + inputWidth;
-                float *pIn2 = pIn1 + inputWidth;
-                float *pIn3 = pIn2 + inputWidth;
-                float *pIn4 = pIn3 + inputWidth;
-                float *pIn5 = pIn4 + inputWidth;
-                float *pIn6 = pIn5 + inputWidth;
-                float *pIn7 = pIn6 + inputWidth;
+            float *p0  = inputBuf + ic*4*tileRegBlock;
+            float *p1  = p0  + lineWidth;
+            float *p2  = p1  + lineWidth;
+            float *p3  = p2  + lineWidth;
+            float *p4  = p3  + lineWidth;
+            float *p5  = p4  + lineWidth;
+            float *p6  = p5  + lineWidth;
+            float *p7  = p6  + lineWidth;
+            float *p8  = p7  + lineWidth;
+            float *p9  = p8  + lineWidth;
+            float *p10 = p9  + lineWidth;
+            float *p11 = p10 + lineWidth;
+            float *p12 = p11 + lineWidth;
+            float *p13 = p12 + lineWidth;
+            float *p14 = p13 + lineWidth;
+            float *p15 = p14 + lineWidth;
+            __builtin_prefetch(p0,  1, 1);
+            __builtin_prefetch(p1,  1, 1);
+            __builtin_prefetch(p2,  1, 1);
+            __builtin_prefetch(p3,  1, 1);
+            __builtin_prefetch(p4,  1, 1);
+            __builtin_prefetch(p5,  1, 1);
+            __builtin_prefetch(p6,  1, 1);
+            __builtin_prefetch(p7,  1, 1);
+            __builtin_prefetch(p8,  1, 1);
+            __builtin_prefetch(p9,  1, 1);
+            __builtin_prefetch(p10, 1, 1);
+            __builtin_prefetch(p11, 1, 1);
+            __builtin_prefetch(p12, 1, 1);
+            __builtin_prefetch(p13, 1, 1);
+            __builtin_prefetch(p14, 1, 1);
+            __builtin_prefetch(p15, 1, 1);
 
-                //if(tileRow>=0 && tileRow+8 <= inputWidth && tileCol>=0 && tileCol+8 <= inputWidth)
-                if(tileRow>=0 && tileRow+8 <= inputHeight && tileCol>=0 && tileCol+8 <= inputWidth)
+            int tNRmd = tileStep%tileRegBlock;
+            int tNEnd = tileStep - tNRmd;
+
+            for(int tN=0; tN<tileStep; tN++)
+            {
+                int curRow = (tile+tN)/tileW*6 - padHeight;
+                int curCol = (tile+tN)%tileW*6 - padWidth;
+		        int rest = pIn0 - testInput + ic*inputHeight*inputWidth;
+                //if(curRow>=0 && curRow+8 <= inputWidth && curCol>=0 && curCol+8 <= inputWidth)
+                if(curRow>=0 && curRow+8<=inputHeight && curCol>=0 && curCol+8<=inputWidth)
                 {
-                    __builtin_prefetch(pIn0, 0, 1);
-                    __builtin_prefetch(pIn1, 0, 1);
-                    __builtin_prefetch(pIn2, 0, 1);
-                    __builtin_prefetch(pIn3, 0, 1);
-                    __builtin_prefetch(pIn4, 0, 1);
-                    __builtin_prefetch(pIn5, 0, 1);
-                    __builtin_prefetch(pIn6, 0, 1);
-                    __builtin_prefetch(pIn7, 0, 1);
+                    l0 = vld1q_f32(pIn0);
+                    r0 = vld1q_f32(pIn0 + 4);
+                    l1 = vld1q_f32(pIn1);
+                    r1 = vld1q_f32(pIn1 + 4);
+                    l2 = vld1q_f32(pIn2);
+                    r2 = vld1q_f32(pIn2 + 4);
+                    l3 = vld1q_f32(pIn3);
+                    r3 = vld1q_f32(pIn3 + 4);
+                    l4 = vld1q_f32(pIn4);
+                    r4 = vld1q_f32(pIn4 + 4);
+                    l5 = vld1q_f32(pIn5);
+                    r5 = vld1q_f32(pIn5 + 4);
+                    l6 = vld1q_f32(pIn6);
+                    r6 = vld1q_f32(pIn6 + 4);
+                    l7 = vld1q_f32(pIn7);
+                    r7 = vld1q_f32(pIn7 + 4);
                 }
-
-                float *p0  = inputBuf + ic*4*tileRegBlock;
-                float *p1  = p0  + lineWidth;
-                float *p2  = p1  + lineWidth;
-                float *p3  = p2  + lineWidth;
-                float *p4  = p3  + lineWidth;
-                float *p5  = p4  + lineWidth;
-                float *p6  = p5  + lineWidth;
-                float *p7  = p6  + lineWidth;
-                float *p8  = p7  + lineWidth;
-                float *p9  = p8  + lineWidth;
-                float *p10 = p9  + lineWidth;
-                float *p11 = p10 + lineWidth;
-                float *p12 = p11 + lineWidth;
-                float *p13 = p12 + lineWidth;
-                float *p14 = p13 + lineWidth;
-                float *p15 = p14 + lineWidth;
-                __builtin_prefetch(p0,  1, 1);
-                __builtin_prefetch(p1,  1, 1);
-                __builtin_prefetch(p2,  1, 1);
-                __builtin_prefetch(p3,  1, 1);
-                __builtin_prefetch(p4,  1, 1);
-                __builtin_prefetch(p5,  1, 1);
-                __builtin_prefetch(p6,  1, 1);
-                __builtin_prefetch(p7,  1, 1);
-                __builtin_prefetch(p8,  1, 1);
-                __builtin_prefetch(p9,  1, 1);
-                __builtin_prefetch(p10, 1, 1);
-                __builtin_prefetch(p11, 1, 1);
-                __builtin_prefetch(p12, 1, 1);
-                __builtin_prefetch(p13, 1, 1);
-                __builtin_prefetch(p14, 1, 1);
-                __builtin_prefetch(p15, 1, 1);
-
-                int tNRmd = tileStep%tileRegBlock;
-                int tNEnd = tileStep - tNRmd;
-
-                for(int tN=0; tN<tileStep; tN++)
+                else
                 {
-                    int curRow = (tile+tN)/tileW*6 - padHeight;
-                    int curCol = (tile+tN)%tileW*6 - padWidth;
-		    int rest = pIn0 - testInput + ic*inputHeight*inputWidth;
-                    //if(curRow>=0 && curRow+8 <= inputWidth && curCol>=0 && curCol+8 <= inputWidth)
-                    if(curRow>=0 && curRow+8<=inputHeight && curCol>=0 && curCol+8<=inputWidth)
+                    float tmp[64];
+                    memset(tmp, 0, 256);
+                    int XStart = curRow<0?0:curRow; 
+                    int YStart = curCol<0?0:curCol;
+                    XStart     = XStart<inputHeight?XStart:inputHeight;
+                    YStart     = YStart<inputWidth?YStart:inputWidth;
+
+                    int XEnd   = curRow+8<inputHeight?curRow+8:inputHeight;
+                    int YEnd   = curCol+8<inputWidth?curCol+8:inputWidth;
+                    XEnd       = XEnd<0?0:XEnd;
+                    YEnd       = YEnd<0?0:YEnd;
+                    int YStep  = YEnd-YStart;
+		            int XStep  = XEnd-XStart;	
+
+                    int len    = YStep*sizeof(float);
+                    float *pLocal = testInput + ic*inputHeight*inputWidth + XStart*inputWidth + YStart;
+                    float *ptmp   = tmp + (XStart-curRow)*8 + YStart-curCol;
+                    for(int ux=0; ux<XStep; ux++, ptmp+=8, pLocal+=inputWidth)
                     {
-                        l0 = vld1q_f32(pIn0);
-                        r0 = vld1q_f32(pIn0 + 4);
-                        l1 = vld1q_f32(pIn1);
-                        r1 = vld1q_f32(pIn1 + 4);
-                        l2 = vld1q_f32(pIn2);
-                        r2 = vld1q_f32(pIn2 + 4);
-                        l3 = vld1q_f32(pIn3);
-                        r3 = vld1q_f32(pIn3 + 4);
-                        l4 = vld1q_f32(pIn4);
-                        r4 = vld1q_f32(pIn4 + 4);
-                        l5 = vld1q_f32(pIn5);
-                        r5 = vld1q_f32(pIn5 + 4);
-                        l6 = vld1q_f32(pIn6);
-                        r6 = vld1q_f32(pIn6 + 4);
-                        l7 = vld1q_f32(pIn7);
-                        r7 = vld1q_f32(pIn7 + 4);
+        //			    	printf("(%d %d)<-(%d %d) Step=%d\n", ux-curRow, YStart-curCol, ux, YStart, YStep);
+                        memcpy(ptmp, pLocal, len);
                     }
-                    else
-                    {
-                        float tmp[64];
-			memset(tmp, 0, 256);
-			int XStart = curRow<0?0:curRow; 
-			int YStart = curCol<0?0:curCol;
-			XStart     = XStart<inputHeight?XStart:inputHeight;
-			YStart     = YStart<inputWidth?YStart:inputWidth;
-
-			int XEnd   = curRow+8<inputHeight?curRow+8:inputHeight;
-			int YEnd   = curCol+8<inputWidth?curCol+8:inputWidth;
-			XEnd       = XEnd<0?0:XEnd;
-			YEnd       = YEnd<0?0:YEnd;
-			int YStep  = YEnd-YStart;
-		        int XStep  = XEnd-XStart;	
-
-			int len    = YStep*sizeof(float);
-			float *pLocal = testInput + ic*inputHeight*inputWidth + XStart*inputWidth + YStart;
-			float *ptmp   = tmp + (XStart-curRow)*8 + YStart-curCol;
-			for(int ux=0; ux<XStep; ux++, ptmp+=8, pLocal+=inputWidth)
-			{
-//			    	printf("(%d %d)<-(%d %d) Step=%d\n", ux-curRow, YStart-curCol, ux, YStart, YStep);
-				memcpy(ptmp, pLocal, len);
-			}
 
 /*			float *pLocal = testInput + ic*inputHeight*inputWidth;
                         for(int ux=XStart; ux<XEnd; ux++)
@@ -1422,230 +1426,226 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
 			}
 //			printTensor(tmp, 8, 8);
 */                      
-			l0 = vld1q_f32(tmp);
-                        r0 = vld1q_f32(tmp + 4);
-                        l1 = vld1q_f32(tmp + 8);
-                        r1 = vld1q_f32(tmp + 12);
-                        l2 = vld1q_f32(tmp + 16);
-                        r2 = vld1q_f32(tmp + 20);
-                        l3 = vld1q_f32(tmp + 24);
-                        r3 = vld1q_f32(tmp + 28);
-                        l4 = vld1q_f32(tmp + 32);
-                        r4 = vld1q_f32(tmp + 36);
-                        l5 = vld1q_f32(tmp + 40);
-                        r5 = vld1q_f32(tmp + 44);
-                        l6 = vld1q_f32(tmp + 48);
-                        r6 = vld1q_f32(tmp + 52);
-                        l7 = vld1q_f32(tmp + 56);
-                        r7 = vld1q_f32(tmp + 60);
-                    }
-                    pIn0 += 6;
-                    pIn1 += 6;
-                    pIn2 += 6;
-                    pIn3 += 6;
-                    pIn4 += 6;
-                    pIn5 += 6;
-                    pIn6 += 6;
-                    pIn7 += 6;
+			        l0 = vld1q_f32(tmp);
+                    r0 = vld1q_f32(tmp + 4);
+                    l1 = vld1q_f32(tmp + 8);
+                    r1 = vld1q_f32(tmp + 12);
+                    l2 = vld1q_f32(tmp + 16);
+                    r2 = vld1q_f32(tmp + 20);
+                    l3 = vld1q_f32(tmp + 24);
+                    r3 = vld1q_f32(tmp + 28);
+                    l4 = vld1q_f32(tmp + 32);
+                    r4 = vld1q_f32(tmp + 36);
+                    l5 = vld1q_f32(tmp + 40);
+                    r5 = vld1q_f32(tmp + 44);
+                    l6 = vld1q_f32(tmp + 48);
+                    r6 = vld1q_f32(tmp + 52);
+                    l7 = vld1q_f32(tmp + 56);
+                    r7 = vld1q_f32(tmp + 60);
+                }
+                pIn0 += 6;
+                pIn1 += 6;
+                pIn2 += 6;
+                pIn3 += 6;
+                pIn4 += 6;
+                pIn5 += 6;
+                pIn6 += 6;
+                pIn7 += 6;
 
-                    int row = (tile+tN+1)/tileW*6 - padHeight;
-                    int col = (tile+tN+1)%tileW*6 - padWidth;
-                    //Reflash the value if tileRow goes to the next line;
-                    if((tN != tileStep-1) && curRow != row)
+                int row = (tile+tN+1)/tileW*6 - padHeight;
+                int col = (tile+tN+1)%tileW*6 - padWidth;
+                //Reflash the value if tileRow goes to the next line;
+                if((tN != tileStep-1) && curRow != row)
+                {
+                    pIn0 = testInput + ic*inputHeight*inputWidth +  row*inputWidth + col;
+                    pIn1 = pIn0 + inputWidth;
+                    pIn2 = pIn1 + inputWidth;
+                    pIn3 = pIn2 + inputWidth;
+                    pIn4 = pIn3 + inputWidth;
+                    pIn5 = pIn4 + inputWidth;
+                    pIn6 = pIn5 + inputWidth;
+                    pIn7 = pIn6 + inputWidth;
+
+                    //if(row>=0 && row+8 < inputWidth && col>=0 && col+8 < inputWidth)
+                    if(row>=0 && row+8 < inputHeight && col>=0 && col+8 < inputWidth)
                     {
-                        pIn0 = testInput + ic*inputHeight*inputWidth +  row*inputWidth + col;
-                        pIn1 = pIn0 + inputWidth;
-                        pIn2 = pIn1 + inputWidth;
-                        pIn3 = pIn2 + inputWidth;
-                        pIn4 = pIn3 + inputWidth;
-                        pIn5 = pIn4 + inputWidth;
-                        pIn6 = pIn5 + inputWidth;
-                        pIn7 = pIn6 + inputWidth;
-
-                        //if(row>=0 && row+8 < inputWidth && col>=0 && col+8 < inputWidth)
-                        if(row>=0 && row+8 < inputHeight && col>=0 && col+8 < inputWidth)
-                        {
-                            __builtin_prefetch(pIn0, 0, 1);
-                            __builtin_prefetch(pIn1, 0, 1);
-                            __builtin_prefetch(pIn2, 0, 1);
-                            __builtin_prefetch(pIn3, 0, 1);
-                            __builtin_prefetch(pIn4, 0, 1);
-                            __builtin_prefetch(pIn5, 0, 1);
-                            __builtin_prefetch(pIn6, 0, 1);
-                            __builtin_prefetch(pIn7, 0, 1);
-                        }
+                        __builtin_prefetch(pIn0, 0, 1);
+                        __builtin_prefetch(pIn1, 0, 1);
+                        __builtin_prefetch(pIn2, 0, 1);
+                        __builtin_prefetch(pIn3, 0, 1);
+                        __builtin_prefetch(pIn4, 0, 1);
+                        __builtin_prefetch(pIn5, 0, 1);
+                        __builtin_prefetch(pIn6, 0, 1);
+                        __builtin_prefetch(pIn7, 0, 1);
                     }
-                    if(!(tN%tileRegBlock) && tN)
-                    {
-                        p0 += stepSize;
-                        p1 += stepSize;
-                        p2 += stepSize;
-                        p3 += stepSize;
-                        p4 += stepSize;
-                        p5 += stepSize;
-                        p6 += stepSize;
-                        p7 += stepSize;
-                        p8 += stepSize;
-                        p9 += stepSize;
-                        p10+= stepSize;
-                        p11+= stepSize;
-                        p12+= stepSize;
-                        p13+= stepSize;
-                        p14+= stepSize;
-                        p15+= stepSize;
+                }
+                if(!(tN%tileRegBlock) && tN)
+                {
+                    p0 += stepSize;
+                    p1 += stepSize;
+                    p2 += stepSize;
+                    p3 += stepSize;
+                    p4 += stepSize;
+                    p5 += stepSize;
+                    p6 += stepSize;
+                    p7 += stepSize;
+                    p8 += stepSize;
+                    p9 += stepSize;
+                    p10+= stepSize;
+                    p11+= stepSize;
+                    p12+= stepSize;
+                    p13+= stepSize;
+                    p14+= stepSize;
+                    p15+= stepSize;
 
-                        __builtin_prefetch(p0, 1, 1);
-                        __builtin_prefetch(p1, 1, 1);
-                        __builtin_prefetch(p2, 1, 1);
-                        __builtin_prefetch(p3, 1, 1);
-                        __builtin_prefetch(p4, 1, 1);
-                        __builtin_prefetch(p5, 1, 1);
-                        __builtin_prefetch(p6, 1, 1);
-                        __builtin_prefetch(p7, 1, 1);
-                        __builtin_prefetch(p8, 1, 1);
-                        __builtin_prefetch(p9, 1, 1);
-                        __builtin_prefetch(p10, 1, 1);
-                        __builtin_prefetch(p11, 1, 1);
-                        __builtin_prefetch(p12, 1, 1);
-                        __builtin_prefetch(p13, 1, 1);
-                        __builtin_prefetch(p14, 1, 1);
-                        __builtin_prefetch(p15, 1, 1);
-                    }
+                    __builtin_prefetch(p0, 1, 1);
+                    __builtin_prefetch(p1, 1, 1);
+                    __builtin_prefetch(p2, 1, 1);
+                    __builtin_prefetch(p3, 1, 1);
+                    __builtin_prefetch(p4, 1, 1);
+                    __builtin_prefetch(p5, 1, 1);
+                    __builtin_prefetch(p6, 1, 1);
+                    __builtin_prefetch(p7, 1, 1);
+                    __builtin_prefetch(p8, 1, 1);
+                    __builtin_prefetch(p9, 1, 1);
+                    __builtin_prefetch(p10, 1, 1);
+                    __builtin_prefetch(p11, 1, 1);
+                    __builtin_prefetch(p12, 1, 1);
+                    __builtin_prefetch(p13, 1, 1);
+                    __builtin_prefetch(p14, 1, 1);
+                    __builtin_prefetch(p15, 1, 1);
+                }
 
 //                    printRegisters(l0, r0, l1, r1, l2, r2, l3, r3, l4, r4, l5, r5, l6, r6, l7, r7);
-                    input_transform(l0, l1, l2, l3, l4, l5, l6, l7, //Target
-                                    t1, t2, s1, s2, m1, m2, //Auxiliary
-                                    f5_25, f4_25, f4, f2_5, f2, f1_25, f0_5, f0_25); //Constants
-                    neon_transpose4x4_inplace_f32_cpp(l0, l1, l2, l3);
-                    neon_transpose4x4_inplace_f32_cpp(l4, l5, l6, l7);
-                    input_transform(r0, r1, r2, r3, r4, r5, r6, r7, //Target
-                                    t1, t2, s1, s2, m1, m2, //Auxiliary
-                                    f5_25, f4_25, f4, f2_5, f2, f1_25, f0_5, f0_25); //Constants
-                    neon_transpose4x4_inplace_f32_cpp(r0, r1, r2, r3);
-                    neon_transpose4x4_inplace_f32_cpp(r4, r5, r6, r7);
+                input_transform(l0, l1, l2, l3, l4, l5, l6, l7, //Target
+                                t1, t2, s1, s2, m1, m2, //Auxiliary
+                                f5_25, f4_25, f4, f2_5, f2, f1_25, f0_5, f0_25); //Constants
+                neon_transpose4x4_inplace_f32_cpp(l0, l1, l2, l3);
+                neon_transpose4x4_inplace_f32_cpp(l4, l5, l6, l7);
+                input_transform(r0, r1, r2, r3, r4, r5, r6, r7, //Target
+                                t1, t2, s1, s2, m1, m2, //Auxiliary
+                                f5_25, f4_25, f4, f2_5, f2, f1_25, f0_5, f0_25); //Constants
+                neon_transpose4x4_inplace_f32_cpp(r0, r1, r2, r3);
+                neon_transpose4x4_inplace_f32_cpp(r4, r5, r6, r7);
 
-                    input_transform(l0, l1, l2, l3, r0, r1, r2, r3, //Target
-                                    t1, t2, s1, s2, m1, m2, //Auxiliary
-                                    f5_25, f4_25, f4, f2_5, f2, f1_25, f0_5, f0_25); //Constants
-                    input_transform(l4, l5, l6, l7, r4, r5, r6, r7, //Target
-                                    t1, t2, s1, s2, m1, m2, //Auxiliary
-                                    f5_25, f4_25, f4, f2_5, f2, f1_25, f0_5, f0_25); //Constants
+                input_transform(l0, l1, l2, l3, r0, r1, r2, r3, //Target
+                                t1, t2, s1, s2, m1, m2, //Auxiliary
+                                f5_25, f4_25, f4, f2_5, f2, f1_25, f0_5, f0_25); //Constants
+                input_transform(l4, l5, l6, l7, r4, r5, r6, r7, //Target
+                                t1, t2, s1, s2, m1, m2, //Auxiliary
+                                f5_25, f4_25, f4, f2_5, f2, f1_25, f0_5, f0_25); //Constants
 
-                    vst1q_f32(p0,  l0);
-                    p0+=4;
-                    vst1q_f32(p1,  l4);
-                    p1+=4;
-                    vst1q_f32(p2,  l1);
-                    p2+=4;
-                    vst1q_f32(p3,  l5);
-                    p3+=4;
-                    vst1q_f32(p4,  l2);
-                    p4+=4;
-                    vst1q_f32(p5,  l6);
-                    p5+=4;
-                    vst1q_f32(p6,  l3);
-                    p6+=4;
-                    vst1q_f32(p7,  l7);
-                    p7+=4;
-                    vst1q_f32(p8,  r0);
-                    p8+=4;
-                    vst1q_f32(p9,  r4);
-                    p9+=4;
-                    vst1q_f32(p10, r1);
-                    p10+=4;
-                    vst1q_f32(p11, r5);
-                    p11+=4;
-                    vst1q_f32(p12, r2);
-                    p12+=4;
-                    vst1q_f32(p13, r6);
-                    p13+=4;
-                    vst1q_f32(p14, r3);
-                    p14+=4;
-                    vst1q_f32(p15, r7);
-                    p15+=4;
-                }
+                vst1q_f32(p0,  l0);
+                p0+=4;
+                vst1q_f32(p1,  l4);
+                p1+=4;
+                vst1q_f32(p2,  l1);
+                p2+=4;
+                vst1q_f32(p3,  l5);
+                p3+=4;
+                vst1q_f32(p4,  l2);
+                p4+=4;
+                vst1q_f32(p5,  l6);
+                p5+=4;
+                vst1q_f32(p6,  l3);
+                p6+=4;
+                vst1q_f32(p7,  l7);
+                p7+=4;
+                vst1q_f32(p8,  r0);
+                p8+=4;
+                vst1q_f32(p9,  r4);
+                p9+=4;
+                vst1q_f32(p10, r1);
+                p10+=4;
+                vst1q_f32(p11, r5);
+                p11+=4;
+                vst1q_f32(p12, r2);
+                p12+=4;
+                vst1q_f32(p13, r6);
+                p13+=4;
+                vst1q_f32(p14, r3);
+                p14+=4;
+                vst1q_f32(p15, r7);
+                p15+=4;
             }
-            inputTran.accumBench();
-//            printf("inputTran\n");
-//            printTensor(inputBuf, 16, 16);
+        }
+        inputTran.accumBench();
 
-            GEMM.startBench();
-            float *gemmBuf = buf + tileRegBlock*ocRegBlock*36;
+        GEMM.startBench();
+        float *gemmBuf = buf + tileRegBlock*ocRegBlock*36;
 	    int cellSize   = tileRegBlock*ocRegBlock*64;
-            int colStep    = tileBlock / tileRegBlock;
+        int colStep    = tileBlock / tileRegBlock;
 	    int extStep    = tileRegBlock  * ocRegBlock   * 4;
 	    int inputStep  = inputChannels * tileRegBlock * 4;
 	    int kernelStep = inputChannels * ocRegBlock   * 4;
 	    int tensorStep = tileRegBlock*4;
 //            for(int kN=0; kN<ocBlock; kN+=ocRegBlock)
-            for(int kN=0; kN<ocStep; kN+=ocRegBlock)
-            {
-                int tileStepRmd = tileStep % tileRegBlock;
-                int tileStepEnd = tileStep - tileStepRmd;
+        for(int kN=0; kN<ocStep; kN+=ocRegBlock)
+        {
+            int tileStepRmd = tileStep % tileRegBlock;
+            int tileStepEnd = tileStep - tileStepRmd;
 
-                float *pInputBuf = inputBuf;
-                float *ext       = gemmBuf   + (kN/ocRegBlock*colStep)* cellSize;
-		const float *pKernel;
-		pKernel = kernelBuf + ((enableOffKernel?oc:0) + kN) * inputChannels * 64;
-//		printf("oc=%d ocBlock=%d ocStep=%d kN=%d\n", oc, ocBlock, ocStep, kN);
-//		printf("kernel pos %d\n", (pKernel-kernelBuf)/(inputChannels * 64));
-                for(int tN=0; tN<tileStepEnd; tN+=tileRegBlock)
+            float *pInputBuf = inputBuf;
+            float *ext       = gemmBuf   + (kN/ocRegBlock*colStep)* cellSize;
+            const float *pKernel;
+            pKernel = kernelBuf + ((enableOffKernel?oc:0) + kN) * inputChannels * 64;
+            for(int tN=0; tN<tileStepEnd; tN+=tileRegBlock)
+            {
+                const float *pKernelBuf = pKernel;
+                for(int depth=0; depth<16; depth++)
                 {
-                    const float *pKernelBuf = pKernel;
-                    for(int depth=0; depth<16; depth++)
-                    {
-                        tensorGEMM(ext, pKernelBuf,  pInputBuf, inputChannels, tensorStep);
-                        ext        += extStep;
-                        pInputBuf  += inputStep;
-                        pKernelBuf += kernelStep;
-                    }
-                }
-		
-                if(tileStepRmd)
-                {
-                    const float *pKernelBuf = pKernel;
-                    for(int depth=0; depth<16; depth++)
-                    {
-                        funGEMM(ext, pKernelBuf,  pInputBuf, inputChannels, tensorStep);
-                        ext        += extStep;
-                        pInputBuf  += inputStep;
-                        pKernelBuf += kernelStep;
-                    }
+                    tensorGEMM(ext, pKernelBuf,  pInputBuf, inputChannels, tensorStep);
+                    ext        += extStep;
+                    pInputBuf  += inputStep;
+                    pKernelBuf += kernelStep;
                 }
             }
-            GEMM.accumBench();
+		
+            if(tileStepRmd)
+            {
+                const float *pKernelBuf = pKernel;
+                for(int depth=0; depth<16; depth++)
+                {
+                    funGEMM(ext, pKernelBuf,  pInputBuf, inputChannels, tensorStep);
+                    ext        += extStep;
+                    pInputBuf  += inputStep;
+                    pKernelBuf += kernelStep;
+                }
+            }
+        }
+        GEMM.accumBench();
 //	    printf("GEMM Step\n");
 
 	    outputTran.startBench();
-            memset(buf, 0, sizeof(float)*36*tileRegBlock*ocRegBlock);
-            int step = tileRegBlock*ocRegBlock*4;
+        memset(buf, 0, sizeof(float)*36*tileRegBlock*ocRegBlock);
+        int step = tileRegBlock*ocRegBlock*4;
 
 //	    for(int kN=0; kN<ocBlock; kN+=ocRegBlock)
 	    for(int kN=0; kN<ocStep; kN+=ocRegBlock)
-                for(int tN=0; tN<tileStep; tN+=tileRegBlock)
-                {
-                    int tNEnd  = tN+tileRegBlock<tileStep?tN+tileRegBlock:tileStep;
-                    int tNStep = tNEnd - tN;
-                    float *pOutputBuf = gemmBuf + (kN/ocRegBlock*colStep + tN/tileRegBlock)*cellSize;
+            for(int tN=0; tN<tileStep; tN+=tileRegBlock)
+            {
+                int tNEnd  = tN+tileRegBlock<tileStep?tN+tileRegBlock:tileStep;
+                int tNStep = tNEnd - tN;
+                float *pOutputBuf = gemmBuf + (kN/ocRegBlock*colStep + tN/tileRegBlock)*cellSize;
 
-                    __builtin_prefetch(pOutputBuf, 	    0, 1);
-                    __builtin_prefetch(pOutputBuf+cellSize, 0, 1);
-		    float *pOut0 = pOutputBuf;
-		    float *pOut1 = pOutputBuf + step*1;
-		    float *pOut2 = pOutputBuf + step*2;
-		    float *pOut3 = pOutputBuf + step*3;
-		    float *pOut4 = pOutputBuf + step*4;
-		    float *pOut5 = pOutputBuf + step*5;
-		    float *pOut6 = pOutputBuf + step*6;
-		    float *pOut7 = pOutputBuf + step*7;
-		    float *pOut8 = pOutputBuf + step*8;
-		    float *pOut9 = pOutputBuf + step*9;
-		    float *pOut10= pOutputBuf + step*10;
-		    float *pOut11= pOutputBuf + step*11;
-		    float *pOut12= pOutputBuf + step*12;
-		    float *pOut13= pOutputBuf + step*13;
-		    float *pOut14= pOutputBuf + step*14;
-		    float *pOut15= pOutputBuf + step*15;
+                __builtin_prefetch(pOutputBuf, 	    0, 1);
+                __builtin_prefetch(pOutputBuf+cellSize, 0, 1);
+                float *pOut0 = pOutputBuf;
+                float *pOut1 = pOutputBuf + step*1;
+                float *pOut2 = pOutputBuf + step*2;
+                float *pOut3 = pOutputBuf + step*3;
+                float *pOut4 = pOutputBuf + step*4;
+                float *pOut5 = pOutputBuf + step*5;
+                float *pOut6 = pOutputBuf + step*6;
+                float *pOut7 = pOutputBuf + step*7;
+                float *pOut8 = pOutputBuf + step*8;
+                float *pOut9 = pOutputBuf + step*9;
+                float *pOut10= pOutputBuf + step*10;
+                float *pOut11= pOutputBuf + step*11;
+                float *pOut12= pOutputBuf + step*12;
+                float *pOut13= pOutputBuf + step*13;
+                float *pOut14= pOutputBuf + step*14;
+                float *pOut15= pOutputBuf + step*15;
 
 	    	    int outputPage   = outputHeight * outputWidth;
 /*		    float *pWrite = baseResult + (oc+kN)*outputPage + (tile+tN)/tileW*6*outputHeight + (tile+tN)%tileW*6;
@@ -1660,173 +1660,92 @@ int winoF63(float *baseResult, float *testInput, const float *testKernel, int in
 			pWrite += outputPage;
 	            }
 */
-                    for(int kRN=0; kRN<ocRegBlock; kRN++)
-		    {
+                for(int kRN=0; kRN<ocRegBlock; kRN++)
+    		    {
 //                        float *ext = buf + ((kN+kRN)*tileBlock + (tN))*36;
 //                        float *ext = buf + kRN*tileRegBlock*36;
-                        float *ext = buf + kRN*tNStep*36;
+                    float *ext = buf + kRN*tNStep*36;
      		        for(int tRN=0; tRN<tNStep; tRN++)
-                        {
-                            l0 = vld1q_f32(pOut0); 	pOut0+=4;
-                            r0 = vld1q_f32(pOut1);	pOut1+=4;
-                            l1 = vld1q_f32(pOut2);	pOut2+=4;
-                            r1 = vld1q_f32(pOut3);	pOut3+=4;
-                            l2 = vld1q_f32(pOut4);	pOut4+=4;
-                            r2 = vld1q_f32(pOut5);	pOut5+=4;
-                            l3 = vld1q_f32(pOut6);	pOut6+=4;
-                            r3 = vld1q_f32(pOut7);	pOut7+=4;
-                            l4 = vld1q_f32(pOut8);	pOut8+=4;
-                            r4 = vld1q_f32(pOut9);	pOut9+=4;
-                            l5 = vld1q_f32(pOut10);	pOut10+=4;
-                            r5 = vld1q_f32(pOut11);	pOut11+=4;
-                            l6 = vld1q_f32(pOut12);	pOut12+=4;
-                            r6 = vld1q_f32(pOut13);	pOut13+=4;
-                            l7 = vld1q_f32(pOut14);	pOut14+=4;
-                            r7 = vld1q_f32(pOut15);	pOut15+=4;
+                    {
+                        l0 = vld1q_f32(pOut0); 	pOut0+=4;
+                        r0 = vld1q_f32(pOut1);	pOut1+=4;
+                        l1 = vld1q_f32(pOut2);	pOut2+=4;
+                        r1 = vld1q_f32(pOut3);	pOut3+=4;
+                        l2 = vld1q_f32(pOut4);	pOut4+=4;
+                        r2 = vld1q_f32(pOut5);	pOut5+=4;
+                        l3 = vld1q_f32(pOut6);	pOut6+=4;
+                        r3 = vld1q_f32(pOut7);	pOut7+=4;
+                        l4 = vld1q_f32(pOut8);	pOut8+=4;
+                        r4 = vld1q_f32(pOut9);	pOut9+=4;
+                        l5 = vld1q_f32(pOut10);	pOut10+=4;
+                        r5 = vld1q_f32(pOut11);	pOut11+=4;
+                        l6 = vld1q_f32(pOut12);	pOut12+=4;
+                        r6 = vld1q_f32(pOut13);	pOut13+=4;
+                        l7 = vld1q_f32(pOut14);	pOut14+=4;
+                        r7 = vld1q_f32(pOut15);	pOut15+=4;
 
-/*			
-                          float *pOut = pOutputBuf + kRN*tNStep*4 + tRN*4;
-                            l0 = vld1q_f32(pOut);
-                            pOut += step;
-                            r0 = vld1q_f32(pOut);
-                            pOut += step;
-                            l1 = vld1q_f32(pOut);
-                            pOut += step;
-                            r1 = vld1q_f32(pOut);
-                            pOut+=step;
-                            l2 = vld1q_f32(pOut);
-                            pOut+=step;
-                            r2 = vld1q_f32(pOut);
-                            pOut+=step;
-                            l3 = vld1q_f32(pOut);
-                            pOut+=step;
-                            r3 = vld1q_f32(pOut);
-                            pOut+=step;
-                            l4 = vld1q_f32(pOut);
-                            pOut+=step;
-                            r4 = vld1q_f32(pOut);
-                            pOut+=step;
-                            l5 = vld1q_f32(pOut);
-                            pOut+=step;
-                            r5 = vld1q_f32(pOut);
-                            pOut+=step;
-                            l6 = vld1q_f32(pOut);
-                            pOut+=step;
-                            r6 = vld1q_f32(pOut);
-                            pOut+=step;
-                            l7 = vld1q_f32(pOut);
-                            pOut+=step;
-                            r7 = vld1q_f32(pOut);
-                            pOut+=step;
-*/
+                        winograd_f6k3_output_transform_inplace(l0, l1, l2, l3, l4, l5, l6, l7);
+                        winograd_f6k3_output_transform_inplace(r0, r1, r2, r3, r4, r5, r6, r7);
+                        neon_transpose4x4_inplace_f32_cpp(l0, l1, l2, l3);
+                        neon_transpose4x4_inplace_f32_cpp(r0, r1, r2, r3);
+                        neon_transpose4x4_inplace_f32_cpp(l4, l5, l6, l7);
+                        neon_transpose4x4_inplace_f32_cpp(r4, r5, r6, r7);
+                        winograd_f6k3_output_transform_inplace(l0, l1, l2, l3, r0, r1, r2, r3);
+                        winograd_f6k3_output_transform_inplace(l4, l5, l6, l7, r4, r5, r6, r7);
 
-//                            printRegisters(l0, r0, l1, r1, l2, r2, l3, r3, l4, r4, l5, r5, l6, r6, l7, r7);
-                            winograd_f6k3_output_transform_inplace(l0, l1, l2, l3, l4, l5, l6, l7);
-                            winograd_f6k3_output_transform_inplace(r0, r1, r2, r3, r4, r5, r6, r7);
-                            neon_transpose4x4_inplace_f32_cpp(l0, l1, l2, l3);
-                            neon_transpose4x4_inplace_f32_cpp(r0, r1, r2, r3);
-                            neon_transpose4x4_inplace_f32_cpp(l4, l5, l6, l7);
-                            neon_transpose4x4_inplace_f32_cpp(r4, r5, r6, r7);
-                            winograd_f6k3_output_transform_inplace(l0, l1, l2, l3, r0, r1, r2, r3);
-                            winograd_f6k3_output_transform_inplace(l4, l5, l6, l7, r4, r5, r6, r7);
-//			    printRegisters(l0, l4, l1, l5, l2, l6, l3, l7, r0, r4, r1, r5, r2, r6, r3, r7);
+        			    vst1q_f32(ext,      l0);
+                        vst1_f32(ext + 4,  vget_low_f32(l4));
+                        vst1q_f32(ext + 6,  l1);
+                        vst1_f32(ext + 10, vget_low_f32(l5));
+                        vst1q_f32(ext + 12, l2);
+                        vst1_f32(ext + 16, vget_low_f32(l6));
+                        vst1q_f32(ext + 18, l3);
+                        vst1_f32(ext + 22, vget_low_f32(l7));
+                        vst1q_f32(ext + 24, r0);
+                        vst1_f32(ext + 28, vget_low_f32(r4));
+                        vst1q_f32(ext + 30, r1);
+                        vst1_f32(ext + 34, vget_low_f32(r5));
+			    
+                        ext += 36;
+                    }
+    		    }
 
-
-			    vst1q_f32(ext,      l0);
-                            vst1_f32(ext + 4,  vget_low_f32(l4));
-                            vst1q_f32(ext + 6,  l1);
-                            vst1_f32(ext + 10, vget_low_f32(l5));
-                            vst1q_f32(ext + 12, l2);
-                            vst1_f32(ext + 16, vget_low_f32(l6));
-                            vst1q_f32(ext + 18, l3);
-                            vst1_f32(ext + 22, vget_low_f32(l7));
-                            vst1q_f32(ext + 24, r0);
-                            vst1_f32(ext + 28, vget_low_f32(r4));
-                            vst1q_f32(ext + 30, r1);
-                            vst1_f32(ext + 34, vget_low_f32(r5));
-
-/*
-                            vst1q_f32(ext,      l0);
-                            vst1q_f32(ext + 4,  l4);
-                            vst1q_f32(ext + 8,  l1);
-                            vst1q_f32(ext + 12, l5);
-                            vst1q_f32(ext + 16, l2);
-                            vst1q_f32(ext + 20, l6);
-                            vst1q_f32(ext + 24, l3);
-                            vst1q_f32(ext + 28, l7);
-                            vst1q_f32(ext + 32, r0);
-                            vst1q_f32(ext + 36, r4);
-                            vst1q_f32(ext + 40, r1);
-                            vst1q_f32(ext + 44, r5);
-*/			    ext += 36;
-                        }
-		    }
-
-		    int ocREnd  = kN+ocRegBlock < ocStep? kN+ocRegBlock : ocStep;
-		    int ocRStep = ocREnd - kN;
-//		    for(int kRN=0;kRN<ocRegBlock;kRN++)
-		    for(int kRN=0;kRN<ocRStep;kRN++)
-		    {
-			for(int tRN=0;tRN<tNStep;tRN++)
-			{
+                int ocREnd  = kN+ocRegBlock < ocStep? kN+ocRegBlock : ocStep;
+                int ocRStep = ocREnd - kN;
+    //		    for(int kRN=0;kRN<ocRegBlock;kRN++)
+                for(int kRN=0;kRN<ocRStep;kRN++)
+                {
+                    for(int tRN=0;tRN<tNStep;tRN++)
+                    {
 	                    int tileRow = (tile+tN+tRN)/tileW*6;
         	            int tileCol = (tile+tN+tRN)%tileW*6;
 				
 			    //float *output = baseResult + (oc+kN+kRN)*outputPage + tileRow*outputHeight + tileCol;
-                            float *output = baseResult + (oc+kN+kRN)*outputPage + tileRow*outputWidth + tileCol;
+                        float *output = baseResult + (oc+kN+kRN)*outputPage + tileRow*outputWidth + tileCol;
 
-                    	    int deltaX = outputHeight - tileRow;
-                    	    //int deltaY = outputHeight - tileCol;
-                            int deltaY = outputWidth - tileCol;
-                    	    deltaX = deltaX<6?deltaX:6;
-                    	    deltaY = deltaY<6?deltaY:6;
+                        int deltaX = outputHeight - tileRow;
+                        //int deltaY = outputHeight - tileCol;
+                        int deltaY = outputWidth - tileCol;
+                        deltaX = deltaX<6?deltaX:6;
+                        deltaY = deltaY<6?deltaY:6;
 //                    	    for(int u=0;u<deltaX;u++)   memcpy(output+u*outputHeight, buf+(kN+kRN)*tileBlock*36 + (tN+tRN)*36  + u*6, deltaY*4); 
 //                    	    for(int u=0;u<deltaX;u++)   memcpy(output+u*outputHeight, buf+(kRN)*tileRegBlock*36 + (tRN)*36  + u*6, deltaY*4); 
-                    	    for(int u=0;u<deltaX;u++)   memcpy(output+u*outputWidth, buf+(kRN)*tNStep*36 + (tRN)*36 + u*6, deltaY*4);//memcpy(output+u*outputHeight, buf+(kRN)*tNStep*36 + (tRN)*36  + u*6, deltaY*4); 
-											//bug may be here.
-			}
+                        for(int u=0;u<deltaX;u++)   memcpy(output+u*outputWidth, buf+(kRN)*tNStep*36 + (tRN)*36 + u*6, deltaY*4);//memcpy(output+u*outputHeight, buf+(kRN)*tNStep*36 + (tRN)*36  + u*6, deltaY*4); 
+                                        //bug may be here.
+			        }
+		        }
 		    }
-		}
 
-	    
-	    
-	    /*
-	    //Wait to fuse outputTransform into oneStep!!!!!
-            for(int kN=0; kN<ocBlock; kN++)
-            {
-		for(int i=0; i<tileStep; i++)
-                {
-                    int tileRow = (tile+i)/tileW*6;
-                    int tileCol = (tile+i)%tileW*6;
-
-                    float *output = baseResult + (oc+kN)*outputPage + tileRow*outputHeight + tileCol;
-
-		    int deltaX = outputHeight - tileRow;
-		    int deltaY = outputHeight - tileCol; 
-		    deltaX = deltaX<6?deltaX:6;
-		    deltaY = deltaY<6?deltaY:6;
-		    for(int u=0;u<deltaX;u++)	memcpy(output+u*outputHeight, buf+kN*tileBlock*36 + i*36  + u*6, deltaY*4);
-
-                    //store a 6x6 matrix back to output
-//                    	for(int u=0; u<6; u++)  for(int v=0; v<6; v++)
-//                        {
-//                            if(tileRow+u<inputHeight-2 && tileCol+v<inputHeight-2)
-////                                *(output+u*(inputWidth-2)+v) = buf[kN*tileBlock*48 + i*48  + u*8 + v];
-//                                *(output+u*(inputWidth-2)+v) = buf[kN*tileBlock*36 + i*36  + u*6 + v];
-//                        }
-
-                }
-	    }
-*/
-            outputTran.accumBench();
-        }
+        outputTran.accumBench();
 
     }
-/*
-    kernelTran.printBench("kernel", 1);
-    inputTran.printBench("inputTran", 1);
-    GEMM.printBench("TensorGEMM", 1);
-    outputTran.printBench("outputTran", 1);
-*/
+ 
+    if(scheduling/4)
+    {
+        kernelTran.printBench("kernel", 1);
+        inputTran.printBench("inputTran", 1);
+        GEMM.printBench("TensorGEMM", 1);
+        outputTran.printBench("outputTran", 1);
+    }
     return 1;
 }
