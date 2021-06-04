@@ -19,11 +19,12 @@
 #include "./utility/common.h"
 #include <assert.h>
 #include <stdio.h>
+#include <omp.h>
 
 class ConvLayer
 {
     public:
-        ConvLayer(float *input, float *kernel, float *biasw, size_t ic, size_t ih, size_t iw, size_t oc, size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=1, size_t pad_right=1, size_t pad_top=1, size_t pad_bottom=1, size_t g=1, bool bias=0)
+        ConvLayer(float *input, float *kernel, float *biasw, size_t ic, size_t ih, size_t iw, size_t oc, int nt, size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=1, size_t pad_right=1, size_t pad_top=1, size_t pad_bottom=1, size_t g=1, bool bias=0)
         {
 	    //Input
             input_channels = ic;
@@ -51,6 +52,9 @@ class ConvLayer
             padding_right  = pad_right;
             padding_bottom = pad_bottom;
 
+        num_threads = nt;
+        omp_set_num_threads(num_threads);
+
 	    if(group == 0 || stride_width  == 0 || stride_height == 0)
 		assert(!(group == 0 || stride_width  == 0 || stride_height == 0));
 	    
@@ -58,7 +62,7 @@ class ConvLayer
             output_width = (input_width + padding_left + padding_right - kernel_width) / stride_width + 1;
             output_height = (input_height + padding_top + padding_bottom - kernel_height) / stride_height + 1;
 	    input_data  = (float *) malloc(input_channels * input_width * input_height * sizeof(float));
-	    kernel_data = (float *) malloc(input_channels * output_channels * kw * kh  * sizeof(float));
+	    kernel_data = (float *) malloc((input_channels * output_channels * kw * kh + 4) * sizeof(float));
 	    bias_data   = (float *) malloc(output_channels * output_width * output_height * sizeof(float));
 
 	    memcpy(input_data, input, input_channels * input_width * input_height * sizeof(float));
@@ -80,6 +84,15 @@ class ConvLayer
 		output_data = NULL;
 		bias_data  = NULL;
 	}
+
+	int get_output_height() {
+        	return this->output_height;
+    	}
+
+    	int get_output_width() {
+        	return this->output_width;
+    	}
+
 
 /*
         int GenerateTopBlobs()

@@ -3,8 +3,8 @@ class ConvNaiveLayer : public ConvLayer
 {
 
     public:
-    ConvNaiveLayer(float *input, float *kernel, float *biasw, size_t ic, size_t ih, size_t iw, size_t oc, size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=1, size_t pad_right=1, size_t pad_top=1, size_t pad_bottom=1, size_t g=1, bool bias=0)
-	    : ConvLayer(input, kernel, biasw, ic, ih, iw, oc, kh, kw, sh, sw, pad_left, pad_right, pad_top, pad_bottom, g, bias)
+    ConvNaiveLayer(float *input, float *kernel, float *biasw, size_t ic, size_t ih, size_t iw, size_t oc, int num_threads = 1, size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=1, size_t pad_right=1, size_t pad_top=1, size_t pad_bottom=1, size_t g=1, bool bias=0)
+	    : ConvLayer(input, kernel, biasw, ic, ih, iw, oc, num_threads, kh, kw, sh, sw, pad_left, pad_right, pad_top, pad_bottom, g, bias)
     {
 
     }
