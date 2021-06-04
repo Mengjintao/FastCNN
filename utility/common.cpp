@@ -125,26 +125,26 @@ int get_cache_info(size_t &l1_cache_size_per_core, size_t &l2_cache_size_per_cor
                             memset(cache_info_file, 0, sizeof(cache_info_file));
                             sprintf(cache_info_file, "%s/%s", child_path, child_entry->d_name);
                             if ((fp = fopen(cache_info_file, "r")) != nullptr)
-                                fscanf(fp, "%d", &(cache_info.level));
+                                int res = fscanf(fp, "%d", &(cache_info.level));
                             fclose(fp);
                         } else if (strcmp(child_entry->d_name, "size") == 0) {  // cache size
                             memset(cache_info_file, 0, sizeof(cache_info_file));
                             sprintf(cache_info_file, "%s/%s", child_path, child_entry->d_name);
                             if ((fp = fopen(cache_info_file, "r")) != nullptr)
-                                fscanf(fp, "%d", &(cache_info.size));
+                                int res = fscanf(fp, "%d", &(cache_info.size));
                             fclose(fp);
                         } else if (strcmp(child_entry->d_name, "type") == 0) {  // cache type(data, instructions or unified)
                             memset(cache_info_file, 0, sizeof(cache_info_file));
                             memset(cache_info.type, 0, sizeof(cache_info.type));
                             sprintf(cache_info_file, "%s/%s", child_path, child_entry->d_name);
                             if ((fp = fopen(cache_info_file, "r")) != nullptr)
-                                fscanf(fp, "%s", (cache_info.type));
+                                int res = fscanf(fp, "%s", (cache_info.type));
                             fclose(fp);
                         } else if (strcmp(child_entry->d_name, "shared_cpu_list") == 0) {   // shared core
                             memset(cache_info_file, 0, sizeof(cache_info_file));
                             sprintf(cache_info_file, "%s/%s", child_path, child_entry->d_name);
                             if ((fp = fopen(cache_info_file, "r")) != nullptr) {
-                                fscanf(fp, "%s", shared_cpu_list);
+                                int res = fscanf(fp, "%s", shared_cpu_list);
                                 char* p = strtok(shared_cpu_list, "-");
                                 int begin = 0, end = 0;
                                 if (p != nullptr) {
