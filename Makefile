@@ -9,7 +9,7 @@ CXX_SRC += ./winoF63ZC/TensorGEMMZC.cpp ./winoF63ZC/winoF63ZC.cpp ./convLayer/wi
 
 ifeq ($(OS), ANDROID)
 	CXX = /home/jtmeng/software/Android-NDK/android-ndk-r21b/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang++
-	CXX_FLAGS = -std=c++11 $(DEFS) -Wno-format -I$(PWD) -O3	-march=armv8-a
+	CXX_FLAGS = -std=c++11 $(DEFS) -Wno-format -I$(PWD) -O3	-march=armv8-a -fopenmp
 # CXX_FLAGS+= --target=aarch64-none-linux-android21 --gcc-toolchain=/home/jtmeng/software/Android-NDK/android-ndk-r21b/toolchains/llvm/prebuilt/linux-x86_64 --sysroot=/home/jtmeng/software/Android-NDK/android-ndk-r21b/toolchains/llvm/prebuilt/linux-x86_64/sysroot -march=armv8-a
 	LD_FLAGS  = -pie -pthread -fopenmp -static-libstdc++ -static-openmp
 else ifeq ($(OS), Darwin)
@@ -18,7 +18,7 @@ else ifeq ($(OS), Darwin)
 	LD_FLAGS  = -pie -pthread -Xpreprocessor -fopenmp -lomp
 else
 	CXX = g++
-	CXX_FLAGS = -std=c++11 $(DEFS) -Wno-format -I$(PWD) -O3 -march=armv8-a -fPIC
+	CXX_FLAGS = -std=c++11 $(DEFS) -Wno-format -I$(PWD) -O3 -march=armv8-a -fPIC -fopenmp
 	LD_FLAGS  = -pie -pthread -fopenmp
 endif
 
