@@ -222,6 +222,7 @@ void ConvIm2colLayer::write_best_param(const char *log_path, int &best_mc, int &
 }
 
 int ConvIm2colLayer::Init() {
+    printf("Algorithm: im2col\n");
     this->set_pack_a();
     this->set_pack_b();
     this->set_pack_c();
@@ -234,9 +235,26 @@ int ConvIm2colLayer::Init() {
 }
 
 int ConvIm2colLayer::Forward() {
-    // this->im2col();
-    this->im2col_v1();
-    this->sgemm();
+    Timer im2col_profiler;
+    Timer gemm_profiler;
+    Timer total;
+    for (int i = 0; i < iterations; i++) {
+        total.startBench();
+        im2col_profiler.startBench();
+        // this->im2col();
+        this->im2col_v1();
+        im2col_profiler.accumBench();
+
+        gemm_profiler.startBench();
+        this->sgemm();
+        gemm_profiler.accumBench();
+        total.accumBench();
+    }
+
+    im2col_profiler.printBench("Im2colTran time:", iterations);
+    gemm_profiler.printBench("Gemm time:", iterations);
+    total.printBench("Total time:", iterations);
+
     return 1;
 }
 

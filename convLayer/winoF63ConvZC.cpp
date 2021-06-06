@@ -2,16 +2,17 @@
 #include "./winoF63ZC/winoF63ZC.h"
 #include <omp.h>
 
-ConvWinoF63ZCLayer::ConvWinoF63ZCLayer(float *input, float *kernel, float *biasw, size_t ic, size_t ih, size_t iw, size_t oc, int thread_num, size_t kh, size_t kw, size_t sh, size_t sw, size_t pad_left, size_t pad_right, size_t pad_top, size_t pad_bottom, size_t g, bool bias)
-    : ConvLayer(input, kernel, biasw, ic, ih, iw, oc, thread_num, kh, kw, sh, sw, pad_left, pad_right, pad_top, pad_bottom, g, bias) {
+ConvWinoF63ZCLayer::ConvWinoF63ZCLayer(float *input, float *kernel, float *biasw, float *output_ref, size_t ic, size_t ih, size_t iw, size_t oc, size_t kh, size_t kw, size_t sh, size_t sw,
+                                       size_t pad_left, size_t pad_right, size_t pad_top, size_t pad_bottom, size_t g, bool bias, size_t nt, size_t iter)
+    : ConvLayer(input, kernel, biasw, output_ref, ic, ih, iw, oc, kh, kw, sh, sw, pad_left, pad_right, pad_top, pad_bottom, g, bias, nt, iter) {
         inputBuf  = NULL;
         gemmBuf   = NULL;
         kernelBuf = NULL;
-        ocBlock_best     = 4;
-        tileBlock_best   = 48;
+        ocBlock_best     = 124;
+        tileBlock_best   = 228;
         ocRegBlock_best  = 4;
         tileRegBlock_best= 4;
-        icBlock_best =8;
+        icBlock_best = 64;
         scheduling_best = 0;
     }
 
@@ -24,10 +25,9 @@ ConvWinoF63ZCLayer::~ConvWinoF63ZCLayer() {
     kernelBuf = NULL;
 }
 
-int ConvWinoF63ZCLayer::Tuning(float* res){
+int ConvWinoF63ZCLayer::Tuning(){
     timespec start, stop;
     int warmup = 0;
-    int nloop = 5;
     
     enableOffKernel = 0;
 
@@ -112,41 +112,45 @@ int ConvWinoF63ZCLayer::Tuning(float* res){
                 printf("inputBuf %d KB\n", tileBlock*icBlock*64*4/1024);  
                 printf("L1 Cache used %d KB\n", (tileBlock*ocBlock*48 + icBlock*ocBlock*64 + tileBlock*icBlock*64)*4/1024);
 */
-                Timer inputTran, kernelTran, GEMM, outputTran;
+                Timer input_tran;
+                Timer kernel_tran;
+                Timer gemm_tran;
+                Timer output_tran;
+
                 for(int i=0;i<warmup;i++) {
                     if (num_threads == 1) {
                         winoF63_v1_single(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
-                                    inputTran, kernelTran, GEMM, outputTran);
+                                        input_tran, kernel_tran, gemm_tran, output_tran);
                         // winoF63_v1_multi_v1(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
                         //                 inputTran, kernelTran, GEMM, outputTran);
                     } else {
                         // winoF63_v1_multi_v1(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
                         //                 inputTran, kernelTran, GEMM, outputTran);
                         winoF63_v1_multi(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
-                                        inputTran, kernelTran, GEMM, outputTran);
+                                        input_tran, kernel_tran, gemm_tran, output_tran);
                     }
                 }
                     
 
                 clock_gettime(CLOCK_MONOTONIC, &start);
-                for(int i=0;i<nloop;i++) {
+                for(int i = 0; i < iterations; i++) {
                     if (num_threads == 1) {
                         winoF63_v1_single(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
-                                    inputTran, kernelTran, GEMM, outputTran);
+                                        input_tran, kernel_tran, gemm_tran, output_tran);
                         // winoF63_v1_multi_v1(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
                         //                 inputTran, kernelTran, GEMM, outputTran);
                     } else {
                         winoF63_v1_multi(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
-                                    inputTran, kernelTran, GEMM, outputTran);
+                                        input_tran, kernel_tran, gemm_tran, output_tran);
                         // winoF63_v1_multi_v1(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
                         //                 inputTran, kernelTran, GEMM, outputTran);
                     }
                 }	
 
                 clock_gettime(CLOCK_MONOTONIC, &stop);
-                double elapsedTime = ((stop.tv_sec - start.tv_sec) * 1000.0 + (stop.tv_nsec - start.tv_nsec) / 1000000.0)/nloop;
+                double elapsedTime = ((stop.tv_sec - start.tv_sec) * 1000.0 + (stop.tv_nsec - start.tv_nsec) / 1000000.0)/iterations;
 
-                float dis = diff(res, output_data, output_channels * output_height * output_width);
+                float dis = diff(output_ref, output_data, output_channels * output_height * output_width);
                 printf("ocb=%d tb=%d(tN=%d,tS=%d) icb=%d ocr%d tbr%d,eoffK%d time=%.3f, diff=%.3f\n", ocBlock, tileBlock, tileN, tl_step, icBlock, ocRegBlock, tileRegBlock, enableOffKernel, elapsedTime, dis);
                 // printf("ocb=%d tb=%d(tN=%d,tS=%d) icb=%d ocr%d tbr%d,eoffK%d time=%.3f, diff=%.3f\n", ocBlock, tileBlock, tileN, tl_step, icBlock, ocRegBlock, tileRegBlock, enableOffKernel, elapsedTime);
                 if(minTimeusage>elapsedTime)	
@@ -171,7 +175,7 @@ int ConvWinoF63ZCLayer::Tuning(float* res){
     kernel_temp = NULL;
 
     printf("Best Config: (%d %d %d) ocb=%d tb=%d icb=%d ocr%d tbr%d, eoffK%d time=%.3f\n", input_channels, output_channels, input_width, ocBlock_best, tileBlock_best, icBlock_best, ocRegBlock_best, tileRegBlock_best, scheduling_best, minTimeusage);
-        return -1;
+    return -1;
 }
 
 int ConvWinoF63ZCLayer::Init() {
@@ -189,6 +193,7 @@ int ConvWinoF63ZCLayer::Init() {
     int tileW = (output_width  + 5)/6;
     int tileN = tileH*tileW;
     
+    printf("Algorithm: winograd F63\n");
     printf("Testing ic=%d oc=%d width=%d tileBlock=%d ocBlock=%d icBlock=%d threads=%d\n", input_channels, output_channels, input_width, tileBlock, ocBlock, icBlock, num_threads);
     // memset(output_data, 0, output_channels * output_width * output_height * sizeof(float));
     // memcpy(kernel_temp, kernel_data, input_channels * output_channels * kernel_width * kernel_height  * sizeof(float));
@@ -220,26 +225,35 @@ int ConvWinoF63ZCLayer::Init() {
 }
 
 int ConvWinoF63ZCLayer::Forward()  {
-    int n_loop = 1;
-    Timer inputTran, kernelTran, GEMM, outputTran;
-    for(int i = 0; i < n_loop; i++) {
+    Timer total;
+    Timer input_tran;
+    Timer kernel_tran;
+    Timer gemm_tran;
+    Timer output_tran;
+    
+    for(int i = 0; i < iterations; i++) {
         // memset(output_data, 0, output_channels * output_height * output_width * sizeof(float));
+        total.startBench();
         if (num_threads == 1) {
             winoF63_v1_single(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
-                        inputTran, kernelTran, GEMM, outputTran);
+                        input_tran, kernel_tran, gemm_tran, output_tran);
             // winoF63_v1_multi_v1(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
             //                 inputTran, kernelTran, GEMM, outputTran);
             
         } else {
             winoF63_v1_multi(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
-                        inputTran, kernelTran, GEMM, outputTran);
+                        input_tran, kernel_tran, gemm_tran, output_tran);
             // winoF63_v1_multi_v1(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
             //                 inputTran, kernelTran, GEMM, outputTran);
         }
+        total.accumBench();
     }
-    inputTran.printBench("inputTran", n_loop);
-    kernelTran.printBench("kernelTran", n_loop);
-    GEMM.printBench("TensorGEMM", n_loop);
-    outputTran.printBench("outputTran", n_loop);
+
+    input_tran.printBench("InputTran time:", iterations);
+    kernel_tran.printBench("KernelTran time:", iterations);
+    gemm_tran.printBench("TensorGEMM time:", iterations);
+    output_tran.printBench("OutputTran time:", iterations);
+    total.printBench("Total time:", iterations);
+
     return 1;
 }

@@ -78,3 +78,49 @@ class Timer
         timespec start, stop;
         double accumulate;
 };
+
+struct nnp_size {
+    size_t width;
+    size_t height;
+};
+
+struct nnp_padding {
+    size_t top;
+    size_t right;
+    size_t bottom;
+    size_t left;
+};
+
+enum nnp_convolution_algorithm {
+	// Choose the algorithm depending on layer parameters 
+	nnp_convolution_algorithm_auto = 0,
+    // Direct convolution implementation.
+	nnp_convolution_algorithm_direct = 1,
+    // Direct convolution via implicit GEMM.
+	nnp_convolution_algorithm_im2col = 2,
+	// Tiled convolution based on 2D Winograd transform F(3x3, 6x6). Supports only 3x3 kernels.
+	nnp_convolution_algorithm_winograd = 3
+};
+
+enum nnp_convolution_transform_strategy {
+	nnp_convolution_transform_strategy_online = 0,
+	nnp_convolution_transform_strategy_offline = 1,
+};
+
+enum nnp_convolution_tuning_strategy {
+	nnp_convolution_tuning_strategy_no_tuning = 0,
+	nnp_convolution_tuning_strategy_grid_search = 1,
+};
+
+struct nnp_time_profile {
+	/** Time spent inside the function call, in seconds. */
+	Timer total;
+	/** Time spend on transformation of the input or input gradient tensor, in seconds. */
+	Timer input_transform;
+	/** Time spend on transformation of the kernel or kernel gradient tensor, in seconds. */
+	Timer kernel_transform;
+	/** Time spend on transformation of the output or output gradient tensor, in seconds. */
+	Timer output_transform;
+	/** Time spend on multiplication-accumulation of transformed coefficients, in seconds. */
+	Timer block_multiplication;
+};

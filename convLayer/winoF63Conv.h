@@ -4,8 +4,10 @@
 class ConvWinoF63Layer : public ConvLayer
 {
     public:
-    ConvWinoF63Layer(float *input, float *kernel, float *biasw, size_t ic, size_t ih, size_t iw, size_t oc, size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=1, size_t pad_right=1, size_t pad_top=1, size_t pad_bottom=1, size_t g=1, bool bias=0)
-	    : ConvLayer(input, kernel, biasw, ic, ih, iw, oc, kh, kw, sh, sw, pad_left, pad_right, pad_top, pad_bottom, g, bias)
+    ConvWinoF63Layer(float *input, float *kernel, float *biasw, float* output_ref, size_t ic, size_t ih, size_t iw, size_t oc,
+	 				size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=1, size_t pad_right=1, size_t pad_top=1, size_t pad_bottom=1,
+					size_t g=1, bool bias=0, size_t nt=1, size_t iter=10)
+	    : ConvLayer(input, kernel, biasw, output_ref, ic, ih, iw, oc, kh, kw, sh, sw, pad_left, pad_right, pad_top, pad_bottom, g, bias, nt, iter)
     {
 	inputBuf  = NULL;
 	gemmBuf   = NULL;
@@ -26,7 +28,7 @@ class ConvWinoF63Layer : public ConvLayer
 	kernelBuf = NULL;
     }
 
-    int Tuning(float *Res=NULL)
+    int Tuning()
     {
     	timespec start, stop;
 	int warmup = 5;
@@ -113,7 +115,7 @@ class ConvWinoF63Layer : public ConvLayer
 			clock_gettime(CLOCK_MONOTONIC, &stop);
 			double elapsedTime = ((stop.tv_sec - start.tv_sec) * 1000.0 + (stop.tv_nsec - start.tv_nsec) / 1000000.0)/nloop;
 
-			float dis = diff(Res, output_data, output_channels * output_height * output_width);
+			float dis = diff(output_ref, output_data, output_channels * output_height * output_width);
 			printf("ocb=%d tb=%d(tN=%d,tS=%d) ocr%d tbr%d,eoffK%d time=%.3f, diff=%.3f\n", ocBlock, tileBlock, tileN,tl_step, ocRegBlock, tileRegBlock, enableOffKernel, elapsedTime, dis);
 			if(minTimeusage>elapsedTime)	
 			{

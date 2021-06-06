@@ -9,10 +9,12 @@
 class ConvWinoF63ZCLayer : public ConvLayer
 {
 public:
-    ConvWinoF63ZCLayer(float *input, float *kernel, float *biasw, size_t ic, size_t ih, size_t iw, size_t oc, int thread_num, size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=1, size_t pad_right=1, size_t pad_top=1, size_t pad_bottom=1, size_t g=1, bool bias=0);
+    ConvWinoF63ZCLayer(float *input, float *kernel, float *biasw, float *output_ref, size_t ic, size_t ih, size_t iw, size_t oc, 
+						size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=1, size_t pad_right=1, size_t pad_top=1, size_t pad_bottom=1,
+						size_t g=1, bool bias=0, size_t nt=1, size_t iter=10);
     ~ConvWinoF63ZCLayer();
 
-    int Tuning(float *Res=NULL);
+    int Tuning();
     int Init();
     int Forward();
     

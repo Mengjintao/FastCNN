@@ -1,10 +1,12 @@
-
+#include "../conv_layer.h"
 class ConvNaiveLayer : public ConvLayer
 {
 
     public:
-    ConvNaiveLayer(float *input, float *kernel, float *biasw, size_t ic, size_t ih, size_t iw, size_t oc, size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=1, size_t pad_right=1, size_t pad_top=1, size_t pad_bottom=1, size_t g=1, bool bias=0)
-	    : ConvLayer(input, kernel, biasw, ic, ih, iw, oc, kh, kw, sh, sw, pad_left, pad_right, pad_top, pad_bottom, g, bias)
+    ConvNaiveLayer(float *input, float *kernel, float *biasw, float* output_ref, size_t ic, size_t ih, size_t iw, size_t oc,
+                    size_t kh=3, size_t kw=3, size_t sh=1, size_t sw=1, size_t pad_left=1, size_t pad_right=1, size_t pad_top=1, size_t pad_bottom=1,
+                    size_t g=1, bool bias=0, size_t nt=1, size_t iter=10)
+	    : ConvLayer(input, kernel, biasw, output_ref, ic, ih, iw, oc, kh, kw, sh, sw, pad_left, pad_right, pad_top, pad_bottom, g, bias, nt, iter)
     {
 
     }
@@ -23,7 +25,7 @@ class ConvNaiveLayer : public ConvLayer
     {
         int output_page = output_height * output_width;
         int input_page = input_height * input_width;
-        int kernel_page = kw * kh;
+        int kernel_page = kernel_height * kernel_width;
         int kernel_page_row = input_channels * kernel_page;
         // support group modify here
         // int kernel_page_row = input_channels / group * kernel_page;
@@ -61,19 +63,19 @@ class ConvNaiveLayer : public ConvLayer
                     // float *kp = kernel_data + oc * kernel_page_row + ic / group * kernel_page;
                     
                     float total = 0;
-                    for(int i=0; i<kh; i++)	for(int j=0; j<kw; j++)
+                    for(int i=0; i<kernel_height; i++)	for(int j=0; j<kernel_width; j++)
                     {
             			int x = startH+i;
 			            int y = startW+j;
 			            float value = 0;
                         if(x>=0 && x<input_height && y>=0 && y<input_width)	value = *(ip + x*input_width + y);
                         else continue;
-                        float *tkp = kp + i*kw + j;
+                        float *tkp = kp + i*kernel_width + j;
                         total += value * (*tkp);
                     }
                     sum += total;
                 }
-                if(biasw) sum = sum + *(bias_data + oc*output_page + tile);
+                if(bias_data) sum = sum + *(bias_data + oc*output_page + tile);
                 *(output_data + oc*output_page + tile) = sum;
             }
         }
