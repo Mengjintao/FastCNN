@@ -83,7 +83,7 @@ void print_options_help(const char* program_name) {
         "  -ts  --transform-strategy The transformation strategy (online, or offline) for kernel transformation (default: online)\n"
         "  -s   --output-subsampling The size of a output subsampling region, AKA stride (default: 1x1)\n"
         "  -ip  --input-padding      Implicit input padding (default: 1)\n"
-		"  -t   --tuning             whether to tuning (default: no_tuning)\n"
+		"  -tn  --tuning             whether to tuning (default: no_tuning)\n"
         "  -t   --threads            The number of threads (default: 1)\n"
         "  -i   --iterations         # iterations (default: 10)\n",
 	program_name);
@@ -269,7 +269,7 @@ struct options parse_options(int argc, char** argv) {
 				exit(EXIT_FAILURE);
 			}
 			i += 1;
-		} else if ((strcmp(argv[i], "--tuning") == 0) || (strcmp(argv[i], "-t") == 0)){
+		} else if ((strcmp(argv[i], "--tuning") == 0) || (strcmp(argv[i], "-tn") == 0)) {
 			if (i + 1 == argc) {
 				fprintf(stderr, "Error: expected iterations value\n");
 				exit(EXIT_FAILURE);
@@ -282,6 +282,7 @@ struct options parse_options(int argc, char** argv) {
 				fprintf(stderr, "Error: invalid tuning name %s\n", argv[i + 1]);
 				exit(EXIT_FAILURE);
 			}
+			i += 1;
 		} else if ((strcmp(argv[i], "--help") == 0) || (strcmp(argv[i], "-h") == 0)) {
 			print_options_help(argv[0]);
 			exit(EXIT_SUCCESS);
@@ -356,8 +357,8 @@ int main(int argc, char* argv[]){
     fillTestInput(test_input, input_channels, input_size);
     fillTestKernel(test_kernel, input_channels, output_channels, kernel_size);
 
-	ConvNaiveLayer conv_reference(test_input, test_kernel, NULL, NULL, input_channels, input_size.height, input_size.width, output_channels);
-    conv_reference.Forward();
+	// ConvNaiveLayer conv_reference(test_input, test_kernel, NULL, NULL, input_channels, input_size.height, input_size.width, output_channels);
+    // conv_reference.Forward();
 
 	ConvLayer* conv_test;
 
@@ -376,7 +377,7 @@ int main(int argc, char* argv[]){
 			// 								input_padding.left, input_padding.right, input_padding.top, input_padding.bottom,
 			// 								1, false,
 			// 								options.threads, options.iterations);
-			ConvIm2colLayer conv(test_input, test_kernel, NULL, conv_reference.output_data,
+			ConvIm2colLayer conv(test_input, test_kernel, NULL, NULL,
 								input_channels, input_size.height, input_size.width, output_channels,
 								kernel_size.height, kernel_size.width, output_subsampling.height, output_subsampling.width,
 								input_padding.left, input_padding.right, input_padding.top, input_padding.bottom,
@@ -396,7 +397,7 @@ int main(int argc, char* argv[]){
 			// 								input_padding.left, input_padding.right, input_padding.top, input_padding.bottom,
 			// 								1, false,
 			// 								options.threads, options.iterations);
-			ConvWinoF63ZCLayer conv(test_input, test_kernel, NULL, conv_reference.output_data,
+			ConvWinoF63ZCLayer conv(test_input, test_kernel, NULL, NULL,
 									input_channels, input_size.height, input_size.width, output_channels,
 									kernel_size.height, kernel_size.width, output_subsampling.height, output_subsampling.width,
 									input_padding.left, input_padding.right, input_padding.top, input_padding.bottom,
