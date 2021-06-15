@@ -329,29 +329,54 @@ void ConvIm2colLayer::im2col_v1() {
     int transform_input_height = input_channels * kernel_height * kernel_width;
     int transform_input_width  = output_height  * output_width;
     int transform_input_size = transform_input_height * transform_input_width;
-    float* in, *in_ptr;
+    float* in, *in_ptr, *in_ptr_copy;
     float* transform_in_ptr = transform_input_data;
 
+    // for (int i = 0; i < input_height; i++) {
+    //     for (int j = 0; j < input_width; j++) {
+    //         printf("%10.3f ", input_data[i * input_width + j]);
+    //     }
+    //     printf("\n");
+    // }
+
+    // printf("---------------------");
+    // printf("\n");
+
+    // for (int i = 0; i < padding_input_height; i++) {
+    //     for (int j = 0; j < padding_input_width; j++) {
+    //         printf("%10.3f ", padding_input_data[i * padding_input_width + j]);
+    //     }
+    //     printf("\n");
+    // } 
+
     int padding_width = padding_left + padding_right;
-    int step = (stride_height - 1) * padding_input_width - stride_width + padding_width;
+    int step = stride_height * padding_input_width;
     // input transform
     for (int ic = 0; ic < input_channels; ic++) {
         in = padding_input_data + ic*padding_input_size;
         for (int u = 0; u < kernel_height; u++) {
             for (int v = 0; v < kernel_width; v++) {
-                in_ptr = in + u*padding_input_width + v;
+                in_ptr_copy = in + u*padding_input_width + v;
                 for (int i = 0; i < output_height; i++) {
+                    in_ptr = in_ptr_copy + i*step;
                     for (int j = 0; j < output_width; j++) {
                         *transform_in_ptr = *in_ptr;
                         ++transform_in_ptr;
                         in_ptr += stride_width;
                     }
-                    // in换行
-                    in_ptr += step;
                 }
             }
         }
     }
+    // printf("---------------------");
+    // printf("\n");
+
+    // for (int i = 0; i < transform_input_height; i++) {
+    //     for (int j = 0; j < transform_input_width; j++) {
+    //         printf("%10.3f ", transform_input_data[i * transform_input_width + j]);
+    //     }
+    //     printf("\n");
+    // }
 
     _mm_free(padding_input_data);
 }

@@ -211,6 +211,10 @@ void kernel_8x8(int kc_adjust, float *packA, float* packB, float *packC, int ldc
         
         "fmla   v6.4s, v26.4s, v24.s[1]    \n"
         "fmla   v7.4s, v27.4s, v24.s[1]    \n"
+
+        "fmla   v8.4s, v26.4s, v24.s[2]    \n"
+        "fmla   v9.4s, v27.4s, v24.s[2]    \n"
+
         "fmla   v10.4s, v26.4s, v24.s[3]    \n"
         "fmla   v11.4s, v27.4s, v24.s[3]    \n"
         
