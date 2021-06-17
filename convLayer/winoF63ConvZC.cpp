@@ -8,8 +8,8 @@ ConvWinoF63ZCLayer::ConvWinoF63ZCLayer(float *input, float *kernel, float *biasw
         inputBuf  = NULL;
         gemmBuf   = NULL;
         kernelBuf = NULL;
-        ocBlock_best     = 124;
-        tileBlock_best   = 228;
+        ocBlock_best     = 140;
+        tileBlock_best   = 52;
         ocRegBlock_best  = 4;
         tileRegBlock_best= 4;
         icBlock_best = 64;

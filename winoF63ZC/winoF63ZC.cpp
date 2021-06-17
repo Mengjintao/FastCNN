@@ -440,7 +440,7 @@ int winoF63_v1_single(float *baseResult, float *testInput, float *testKernel, in
                     // for (int oc_cblock_idx = 0; oc_cblock_idx < outputChannels; oc_cblock_idx += oc_block) {
                     //     // 确定一个panel的高度
                     //     int oc_cblock_step = min(oc_block, outputChannels - oc_cblock_idx);
-                    #pragma omp parallel for private(l0, l1, l2, l3, l4, l5, l6, l7, r0, r1, r2, r3, r4, r5, r6, r7, m1, m2, s1, s2, t1, t2)
+                    // #pragma omp parallel for private(l0, l1, l2, l3, l4, l5, l6, l7, r0, r1, r2, r3, r4, r5, r6, r7, m1, m2, s1, s2, t1, t2)
                     for (int oc_rblock_idx = 0; oc_rblock_idx < oc_cblock_step; oc_rblock_idx += ocRegBlock) {
                         int oc_rblock_step = min(ocRegBlock, oc_cblock_step - oc_rblock_idx);
                         float* kernelBuf_copy = kernelBuf + 64 * oc_cblock_idx * ic_block + 4 * oc_rblock_idx * ic_block;
@@ -461,9 +461,6 @@ int winoF63_v1_single(float *baseResult, float *testInput, float *testKernel, in
                         float* tk13 = tk12 + tk_step;
                         float* tk14 = tk13 + tk_step;
                         float* tk15 = tk14 + tk_step;
-
-                        // int tid = omp_get_thread_num();
-                        // printf("tid = %d, oc_cblock_idx = %d, oc_rblock_idx = %d.\n", tid, oc_cblock_idx, oc_rblock_idx);
 
                         for (int ic = 0; ic < ic_cblock_step; ic++) {
                             for (int oc = 0; oc < oc_rblock_step; oc++) {
@@ -519,7 +516,7 @@ int winoF63_v1_single(float *baseResult, float *testInput, float *testKernel, in
                 int tile_rblock_remain_start = tile_cblock_step - tile_cblock_step % tileRegBlock;
                 float* inputBuf_copy = inputBuf + 64 * ic_block * tile_cblock_idx;
                 int step = 4 * ic_block * tile_cblock_step_align;
-                #pragma omp parallel for collapse(2) private(l0, l1, l2, l3, l4, l5, l6, l7, r0, r1, r2, r3, r4, r5, r6, r7, m1, m2, s1, s2, t1, t2)
+                // #pragma omp parallel for collapse(2) private(l0, l1, l2, l3, l4, l5, l6, l7, r0, r1, r2, r3, r4, r5, r6, r7, m1, m2, s1, s2, t1, t2)
                 for (int tile_rblock_idx = 0; tile_rblock_idx < tile_rblock_remain_start; tile_rblock_idx += tileRegBlock) {
                     // float *inputBuf_copy = inputBuf + 4 * ic_block * tile_rblock_idx;
                     for (int ic = 0; ic < ic_cblock_step; ic++) {
@@ -819,7 +816,7 @@ int winoF63_v1_single(float *baseResult, float *testInput, float *testKernel, in
             // printMatrix_v1(transform_input, 16*tileBlock / tileRegBlock, 4 * icBlock * tileRegBlock);
 
             GEMM.startBench();
-            #pragma omp parallel for 
+            // #pragma omp parallel for 
             for (int depth = 0; depth < 16; depth++) {
                 // for (int oc_cblock_idx = 0; oc_cblock_idx < outputChannels; oc_cblock_idx += oc_block) {
                     // int oc_cblock_step = min(oc_block, oc_cblock_end - oc_cblock_begin);
@@ -872,7 +869,7 @@ int winoF63_v1_single(float *baseResult, float *testInput, float *testKernel, in
     outputTran.startBench();
     int step = 4 * outputChannels * tileN;
     int output_size = outputHeight * outputWidth;
-    #pragma omp parallel for private(l0, l1, l2, l3, l4, l5, l6, l7, r0, r1, r2, r3, r4, r5, r6, r7, m1, m2, s1, s2, t1, t2)
+    // #pragma omp parallel for private(l0, l1, l2, l3, l4, l5, l6, l7, r0, r1, r2, r3, r4, r5, r6, r7, m1, m2, s1, s2, t1, t2)
     for (int oc = 0; oc < outputChannels; oc++) {
         float *gemmBuf_p0  = gemmBuf + 4 * oc * tileN;
         float *gemmBuf_p1  = gemmBuf_p0  + step;

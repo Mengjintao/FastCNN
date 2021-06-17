@@ -68,7 +68,7 @@ class ConvLayer
             output_width = (input_width + padding_left + padding_right - kernel_width) / stride_width + 1;
             output_height = (input_height + padding_top + padding_bottom - kernel_height) / stride_height + 1;
             input_data  = (float *) malloc(input_channels * input_width * input_height * sizeof(float));
-            kernel_data = (float *) malloc((input_channels * output_channels * kw * kh + 4) * sizeof(float));
+            kernel_data = (float *) malloc((input_channels * output_channels * kw * kh + 16) * sizeof(float));
             bias_data   = (float *) malloc(output_channels * output_width * output_height * sizeof(float));
 
             memcpy(input_data, input, input_channels * input_width * input_height * sizeof(float));
