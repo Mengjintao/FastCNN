@@ -63,7 +63,7 @@ class ConvLayer
             assert(!(group == 0 || stride_width  == 0 || stride_height == 0));
 	    
 	        //Output
-            output_ref = output_ref;
+            this->output_ref = output_ref;
 
             output_width = (input_width + padding_left + padding_right - kernel_width) / stride_width + 1;
             output_height = (input_height + padding_top + padding_bottom - kernel_height) / stride_height + 1;
@@ -100,34 +100,6 @@ class ConvLayer
         	return this->output_width;
     	}
 
-
-/*
-        int GenerateTopBlobs()
-        {
-            //Conv layer has and only has one bottom blob.
-            const Blob<float> *bottom_blob = _bottom_blobs[_bottom[0]];
-	    printf("bottom name %s ptr 0x%lx\n", _bottom[0].c_str(), bottom_blob);
-            input_width = bottom_blob->width();
-            input_height = bottom_blob->height();
-            input_channels = bottom_blob->channels();
-
-            output_width = (input_width + padding_left + padding_right - kernel_width) / stride_width + 1;
-            output_height = (input_height + padding_top + padding_bottom - kernel_height) / stride_height + 1;
-#if 0
-            printf("input channels %d\n", input_channels);
-            assert(input_channels == bottom_blob->channels());
-            printf("input w %lu\n", input_width);
-            printf("padding_left %lu\n", padding_left);
-            printf("padding_top %lu\n", padding_top);
-            printf("stride_width %lu\n", stride_width);
-            printf("stride_height %lu\n", stride_height);
-            printf("output %ld %ld\n", output_width, output_height);
-#endif
-            _top_blobs[_top[0]] = new Blob<float>(1, output_channels, output_height, output_width);
-            _top_blobs[_top[0]]->Alloc();
-            return 0;
-        }
-*/
 
         virtual int Init()
         {

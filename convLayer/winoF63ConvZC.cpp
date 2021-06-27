@@ -17,12 +17,9 @@ ConvWinoF63ZCLayer::ConvWinoF63ZCLayer(float *input, float *kernel, float *biasw
     }
 
 ConvWinoF63ZCLayer::~ConvWinoF63ZCLayer() {
-    if(inputBuf) 	_mm_free(inputBuf);
-    if(gemmBuf)	    _mm_free(gemmBuf);
-    if(kernelBuf)	_mm_free(kernelBuf);
-    inputBuf  = NULL;
-    gemmBuf   = NULL;
-    kernelBuf = NULL;
+    _mm_free(inputBuf);
+    _mm_free(gemmBuf);
+    _mm_free(kernelBuf);
 }
 
 int ConvWinoF63ZCLayer::Tuning(){
@@ -30,7 +27,6 @@ int ConvWinoF63ZCLayer::Tuning(){
     int warmup = 0;
     
     enableOffKernel = 0;
-
     tileBlock    = 4;
     tileRegBlock = 4;
     ocBlock      = 4;
@@ -46,8 +42,7 @@ int ConvWinoF63ZCLayer::Tuning(){
     int InnerK_tl[2]={4, 5};	
 
     double minTimeusage=1e100;
-
-    int max_tuning_num = 1024;	//
+    int max_tuning_num = 2048;	//
     
 
     for(int ik=0;ik<2;ik++)
@@ -57,7 +52,7 @@ int ConvWinoF63ZCLayer::Tuning(){
 
         int oc_num = (output_channels-1)/ ocRegBlock + 1;
         int tl_num = (tileN -1) / tileRegBlock + 1;
-        int ic_num = 8;
+        int ic_num = (input_channels < 8 ? input_channels : 8);
         if(oc_num*tl_num>max_tuning_num)	{
             //OC will be divided at most 64 parts.
             if(oc_num>=64)	          oc_num = 64;	
@@ -82,36 +77,29 @@ int ConvWinoF63ZCLayer::Tuning(){
             if(icBlock > input_channels)  icBlock = input_channels;
             if(ocBlock%ocRegBlock)		continue;
             if(tileBlock%tileRegBlock)	continue;
-//		    printf("ocb=%d tb=%d ocr%d tbr%d\n", ocBlock, tileBlock, ocRegBlock, tileRegBlock);
 
-            for(enableOffKernel = 0; enableOffKernel >= 0; enableOffKernel -= 2)
+            for(enableOffKernel = 2; enableOffKernel >= 0; enableOffKernel -= 2)
             {
-                // memset(output_data, 0, output_channels * output_width * output_height * sizeof(float));
-                // memcpy(kernel_temp, kernel_data, input_channels * output_channels * kernel_width * kernel_height  * sizeof(float));
-                inputBuf = (float *) _mm_malloc((64 * icBlock * align_ceil(tileN, tileBlock) + 128) * sizeof(float));
-                gemmBuf  = (float *) _mm_malloc((64 * output_channels * tileN + 128) * sizeof(float));
+                inputBuf = (float *) _mm_malloc((64 * icBlock * align_ceil(tileN, tileRegBlock) + 64) * sizeof(float));
+                gemmBuf  = (float *) _mm_malloc((64 * output_channels * align_ceil(tileN, tileRegBlock) + 64) * sizeof(float));
                 // inputBuf  = (float*) _mm_malloc(sizeof(float) * (64 * align_ceil(tileN, tileBlock) * icBlock + 128));
                 // gemmBuf   = (float*) _mm_malloc(sizeof(float) * (64 * align_ceil(output_channels, ocBlock) * align_ceil(tileN, tileBlock) + 128));
-                if(enableOffKernel)	{
+                if(enableOffKernel % 2 == 0)	{
                     // kernelBuf = (float*) _mm_malloc(sizeof(float) * (64 * ocBlock * icBlock + 128));
                     kernelBuf = (float *) _mm_malloc((64 * align_ceil(output_channels, ocBlock) * align_ceil(input_channels, icBlock) + 128) * sizeof(float));  	
-                    // printf("\n");
                 } else {
                     kernelBuf = (float *) _mm_malloc((64 * icBlock * align_ceil(output_channels, ocBlock) + 128) * sizeof(float));
-                    // memset(kernelBuf, 0, (64 * output_channels * icBlock + 128) * sizeof(float));
                 }
-                // memset(inputBuf, 0, (64 * icBlock * align_ceil(tileBlock, tileRegBlock) + 128) * sizeof(float));
-                memset(gemmBuf, 0, sizeof(float) * (64 * align_ceil(output_channels, ocBlock) * align_ceil(tileN, tileBlock) + 128));
-                memset(output_data, 0, output_channels * output_width * output_height * sizeof(float));
+                if (inputBuf == NULL || gemmBuf == NULL || kernelBuf == NULL) {
+                    fprintf(stderr, "Buffer is NULL.\n");
+			        exit(EXIT_FAILURE);
+                }
+                // memset(gemmBuf, 0, gemmBuf_size);
+                // memset(output_data, 0, output_channels * output_width * output_height * sizeof(float));
                 // retransformKernel(kernel_temp, output_channels, input_channels, ocRegBlock);
                 // if(enableOffKernel)
                 //         offlineKernelTransform(kernelBuf, kernel_temp, output_channels, input_channels, ocBlock, ocRegBlock);
 
-//    			printf("kernelBuf %d KB\n", icBlock*ocBlock*64*4/1024);   
-/*    			printf("gemmBuf %d KB\n",   (ocRegBlock*tileRegBlock*36 + ocBlock*tileBlock*64)*4/1024);   
-                printf("inputBuf %d KB\n", tileBlock*icBlock*64*4/1024);  
-                printf("L1 Cache used %d KB\n", (tileBlock*ocBlock*48 + icBlock*ocBlock*64 + tileBlock*icBlock*64)*4/1024);
-*/
                 Timer input_tran;
                 Timer kernel_tran;
                 Timer gemm_tran;
@@ -134,6 +122,9 @@ int ConvWinoF63ZCLayer::Tuning(){
 
                 clock_gettime(CLOCK_MONOTONIC, &start);
                 for(int i = 0; i < iterations; i++) {
+                    if (i == iterations - 1) {
+                        memset(gemmBuf, 0, (64 * output_channels * align_ceil(tileN, tileRegBlock) + 64) * sizeof(float));
+                    }
                     if (num_threads == 1) {
                         winoF63_v1_single(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
                                         input_tran, kernel_tran, gemm_tran, output_tran);
@@ -150,9 +141,13 @@ int ConvWinoF63ZCLayer::Tuning(){
                 clock_gettime(CLOCK_MONOTONIC, &stop);
                 double elapsedTime = ((stop.tv_sec - start.tv_sec) * 1000.0 + (stop.tv_nsec - start.tv_nsec) / 1000000.0)/iterations;
 
-                float dis = diff(output_ref, output_data, output_channels * output_height * output_width);
-                printf("ocb=%d tb=%d(tN=%d,tS=%d) icb=%d ocr%d tbr%d,eoffK%d time=%.3f, diff=%.3f\n", ocBlock, tileBlock, tileN, tl_step, icBlock, ocRegBlock, tileRegBlock, enableOffKernel, elapsedTime, dis);
-                // printf("ocb=%d tb=%d(tN=%d,tS=%d) icb=%d ocr%d tbr%d,eoffK%d time=%.3f, diff=%.3f\n", ocBlock, tileBlock, tileN, tl_step, icBlock, ocRegBlock, tileRegBlock, enableOffKernel, elapsedTime);
+                if (output_ref != NULL) {
+                    float dis = diff(output_ref, output_data, output_channels * output_height * output_width);
+                    printf("ocb=%d tb=%d(tN=%d,tS=%d) icb=%d ocr%d tbr%d,eoffK%d time=%.3f, diff=%.3f\n", ocBlock, tileBlock, tileN, tl_step, icBlock, ocRegBlock, tileRegBlock, enableOffKernel, elapsedTime, dis);
+                } else {
+                    printf("ocb=%d tb=%d(tN=%d,tS=%d) icb=%d ocr%d tbr%d,eoffK%d time=%.3f\n", ocBlock, tileBlock, tileN, tl_step, icBlock, ocRegBlock, tileRegBlock, enableOffKernel, elapsedTime);
+                }
+
                 if(minTimeusage>elapsedTime)	
                 {
                     ocBlock_best = ocBlock;  
@@ -171,7 +166,7 @@ int ConvWinoF63ZCLayer::Tuning(){
             }
         }
     }
-    free(kernel_temp);
+    if (kernel_temp)    free(kernel_temp);
     kernel_temp = NULL;
 
     printf("Best Config: (%d %d %d) ocb=%d tb=%d icb=%d ocr%d tbr%d, eoffK%d time=%.3f\n", input_channels, output_channels, input_width, ocBlock_best, tileBlock_best, icBlock_best, ocRegBlock_best, tileRegBlock_best, scheduling_best, minTimeusage);
@@ -192,48 +187,49 @@ int ConvWinoF63ZCLayer::Init() {
     int tileH = (output_height + 5)/6;
     int tileW = (output_width  + 5)/6;
     int tileN = tileH*tileW;
-    
+
     printf("Algorithm: winograd F63\n");
     printf("Testing ic=%d oc=%d width=%d tileBlock=%d ocBlock=%d icBlock=%d threads=%d\n", input_channels, output_channels, input_width, tileBlock, ocBlock, icBlock, num_threads);
-    // memset(output_data, 0, output_channels * output_width * output_height * sizeof(float));
-    // memcpy(kernel_temp, kernel_data, input_channels * output_channels * kernel_width * kernel_height  * sizeof(float));
-    inputBuf = (float *) _mm_malloc((64 * icBlock * align_ceil(tileN, tileBlock) + 128) * sizeof(float));
-    gemmBuf  = (float *) _mm_malloc((64 * output_channels * tileN + 128) * sizeof(float));
+    inputBuf = (float *) _mm_malloc((64 * icBlock * align_ceil(tileN, tileRegBlock) + 64) * sizeof(float));
+    gemmBuf  = (float *) _mm_malloc((64 * output_channels * align_ceil(tileN, tileRegBlock) + 64) * sizeof(float));
     // inputBuf  = (float*) _mm_malloc(sizeof(float) * (64 * align_ceil(tileN, tileBlock) * icBlock + 128));
     // gemmBuf   = (float*) _mm_malloc(sizeof(float) * (64 * align_ceil(output_channels, ocBlock) * align_ceil(tileN, tileBlock) + 128));
     if(enableOffKernel)	{
         // kernelBuf = (float*) _mm_malloc(sizeof(float) * (64 * ocBlock * icBlock + 128));
         kernelBuf = (float *) _mm_malloc((64 * output_channels * align_ceil(input_channels, icBlock) + 128) * sizeof(float));  	
-        // printf("\n");
     } else {
         kernelBuf = (float *) _mm_malloc((64 * icBlock * align_ceil(output_channels, ocBlock) + 128) * sizeof(float));
-        // memset(kernelBuf, 0, (64 * output_channels * icBlock + 128) * sizeof(float));
     }	       	
+    if (inputBuf == NULL || gemmBuf == NULL || kernelBuf == NULL) {
+        fprintf(stderr, "Buffer is NULL.\n");
+        exit(EXIT_FAILURE);
+    }
 
-    // memset(inputBuf, 0, (64 * icBlock * align_ceil(tileBlock, tileRegBlock) + 128) * sizeof(float));
-    // memset(gemmBuf, 0, (64 * output_channels * tileN + 128) * sizeof(float));
-    // memset(output_data, 0, output_channels * output_width * output_height * sizeof(float));
     if(enableOffKernel) {
         offline_kernel_transform_v1(kernelBuf, kernel_data, output_channels, input_channels, ocBlock, ocRegBlock, icBlock);
         printf("offline kernel transform.\n");
     }
-    // printf("kernelBuf %d KB\n", icBlock*ocBlock*64*4/1024);   
-    // printf("gemmBuf   %d KB\n",   (ocRegBlock*tileRegBlock*36 + ocBlock*tileBlock*64)*4/1024);   
-    // printf("inputBuf  %d KB\n", tileBlock*icBlock*64*4/1024);  
-    // printf("L1 Cache used %d KB\n", (tileBlock*ocBlock*48 + icBlock*ocBlock*64 + tileBlock*icBlock*64)*4/1024);
     return -1;
 }
 
 int ConvWinoF63ZCLayer::Forward()  {
     Timer total;
+    Timer round;
     Timer input_tran;
     Timer kernel_tran;
     Timer gemm_tran;
     Timer output_tran;
-    
+
+    int tileH = (output_height + 5)/6;
+    int tileW = (output_width  + 5)/6;
+    int tileN = tileH*tileW;
+
     for(int i = 0; i < iterations; i++) {
-        // memset(output_data, 0, output_channels * output_height * output_width * sizeof(float));
         total.startBench();
+        round.startBench();
+        if (i == iterations - 1) {
+            memset(gemmBuf, 0, (64 * output_channels * align_ceil(tileN, tileRegBlock) + 64) * sizeof(float));
+        }
         if (num_threads == 1) {
             winoF63_v1_single(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
                         input_tran, kernel_tran, gemm_tran, output_tran);
@@ -246,6 +242,7 @@ int ConvWinoF63ZCLayer::Forward()  {
             // winoF63_v1_multi_v1(output_data, input_data, kernel_data, input_channels, output_channels, input_height, input_width, padding_left, padding_top, stride_width, stride_height, tileBlock, gemmBuf, ocBlock, kernelBuf, icBlock, inputBuf, tileRegBlock, ocRegBlock, enableOffKernel, num_threads,
             //                 inputTran, kernelTran, GEMM, outputTran);
         }
+        round.endBench("round time:");
         total.accumBench();
     }
 
@@ -254,6 +251,9 @@ int ConvWinoF63ZCLayer::Forward()  {
     gemm_tran.printBench("TensorGEMM time:", iterations);
     output_tran.printBench("OutputTran time:", iterations);
     total.printBench("Total time:", iterations);
+                
+    if (output_ref != NULL)
+        float dis = diff(output_ref, output_data, output_channels * output_height * output_width);
 
     return 1;
 }

@@ -357,8 +357,8 @@ int main(int argc, char* argv[]){
     fillTestInput(test_input, input_channels, input_size);
     fillTestKernel(test_kernel, input_channels, output_channels, kernel_size);
 
-	// ConvNaiveLayer conv_reference(test_input, test_kernel, NULL, NULL, input_channels, input_size.height, input_size.width, output_channels);
-    // conv_reference.Forward();
+	ConvNaiveLayer conv_reference(test_input, test_kernel, NULL, NULL, input_channels, input_size.height, input_size.width, output_channels);
+    conv_reference.Forward();
 
 	ConvLayer* conv_test;
 
@@ -397,7 +397,7 @@ int main(int argc, char* argv[]){
 			// 								input_padding.left, input_padding.right, input_padding.top, input_padding.bottom,
 			// 								1, false,
 			// 								options.threads, options.iterations);
-			ConvWinoF63ZCLayer conv(test_input, test_kernel, NULL, NULL,
+			ConvWinoF63ZCLayer conv(test_input, test_kernel, NULL, conv_reference.output_data,
 									input_channels, input_size.height, input_size.width, output_channels,
 									kernel_size.height, kernel_size.width, output_subsampling.height, output_subsampling.width,
 									input_padding.left, input_padding.right, input_padding.top, input_padding.bottom,
