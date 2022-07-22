@@ -30,35 +30,36 @@ make
 -a is used to select algorithm \
 -tn is used to decide whether to autotune \
 -i is used to decide the number of iterations
+-t is used to decide the number of threads
 ##### Layer-wise Evaluation on VGG-16:
 ```bash
-# Algorithm is automatically selected, no tuning, use default parameters, No. iterations is 10
-./run_vgg16.sh -a auto -tn no_tuning -i 10
-# Algorithm is winograd, no tuning, use default parameters, No. iterations is 10
-./run_vgg16.sh -a winograd -tn no_tuning -i 10
-# Algorithm is Im2col, no tuning, use default parameters, No. iterations is 10
-./run_vgg16.sh -a im2col -tn no_tuning -i 10
-# Algorithm is automatically selected, tuning, No. iterations is 10
-./run_vgg16.sh -a auto -tn tuning -i 10
-# Algorithm is winograd, tuning, No. iterations is 10
-./run_vgg16.sh -a winograd -tn tuning -i 10
-# Algorithm is Im2col, tuning, No. iterations is 10
-./run_vgg16.sh -a im2col -tn tuning -i 10
+# Algorithm is automatically selected, no tuning, use default parameters, No. iterations is 10, No. threads is 8
+./run_vgg16.sh -a auto -tn no_tuning -i 10 -t 8
+# Algorithm is winograd, no tuning, use default parameters, No. iterations is 10, No. threads is 8
+./run_vgg16.sh -a winograd -tn no_tuning -i 10 -t 8
+# Algorithm is Im2col, no tuning, use default parameters, No. iterations is 10, No. threads is 8
+./run_vgg16.sh -a im2col -tn no_tuning -i 10 -t 8
+# Algorithm is automatically selected, tuning, No. iterations is 10, No. threads is 8
+./run_vgg16.sh -a auto -tn tuning -i 10 -t 8
+# Algorithm is winograd, tuning, No. iterations is 10, No. threads is 8
+./run_vgg16.sh -a winograd -tn tuning -i 10 -t 8
+# Algorithm is Im2col, tuning, No. iterations is 10, No. threads is 8
+./run_vgg16.sh -a im2col -tn tuning -i 10 -t 8
 ```
 ##### Layer-wise Evaluation on ResNet-50:
 ```bash
-# Algorithm is automatically selected, no tuning, use default parameters, No. iterations is 10
-./run_resnet50.sh -a auto -tn no_tuning -i 10
-# Algorithm is winograd, no tuning, use default parameters, No. iterations is 10
-./run_resnet50.sh -a winograd -tn no_tuning -i 10
-# Algorithm is Im2col, no tuning, use default parameters, No. iterations is 10
-./run_resnet50.sh -a im2col -tn no_tuning -i 10
-# Algorithm is automatically selected, tuning, No. iterations is 10
-./run_resnet50.sh -a auto -tn tuning -i 10
-# Algorithm is winograd, tuning, No. iterations is 10
-./run_resnet50.sh -a winograd -tn tuning -i 10
-# Algorithm is Im2col, tuning, No. iterations is 10
-./run_resnet50.sh -a im2col -tn tuning -i 10
+# Algorithm is automatically selected, no tuning, use default parameters, No. iterations is 10, No. threads is 8
+./run_resnet50.sh -a auto -tn no_tuning -i 10 -t 8
+# Algorithm is winograd, no tuning, use default parameters, No. iterations is 10, No. threads is 8
+./run_resnet50.sh -a winograd -tn no_tuning -i 10 -t 8
+# Algorithm is Im2col, no tuning, use default parameters, No. iterations is 10, No. threads is 8
+./run_resnet50.sh -a im2col -tn no_tuning -i 10 -t 8
+# Algorithm is automatically selected, tuning, No. iterations is 10, No. threads is 8
+./run_resnet50.sh -a auto -tn tuning -i 10 -t 8
+# Algorithm is winograd, tuning, No. iterations is 10, No. threads is 8
+./run_resnet50.sh -a winograd -tn tuning -i 10 -t 8
+# Algorithm is Im2col, tuning, No. iterations is 10, No. threads is 8
+./run_resnet50.sh -a im2col -tn tuning -i 10 -t 8
 ```
 ### Running this software on Android:
 First, upload the binary executable file and running scripts to the Android device.
